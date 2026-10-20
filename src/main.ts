@@ -4,8 +4,12 @@ import "@fontsource/big-shoulders-display/latin-800";
 import "@fontsource/ibm-plex-mono/latin-500";
 import "@fontsource/ibm-plex-mono/latin-600";
 import "./style.css";
+// Pixi's shader plumbing normally builds functions from strings, which a strict Content Security Policy forbids; this swaps in its no-eval version.
+import "pixi.js/unsafe-eval";
 import { BUILT_WITH } from "./app/about.ts";
 import { CATALOG } from "./app/catalog.ts";
+import { parseLaunch, wantsRepeatableRng } from "./app/launch.ts";
+import { QA_ALLOWED } from "./app/qa.ts";
 import { loadPrefs } from "./app/prefs.ts";
 import { LOBBY, parseRoute, routeToHash, sameRoute } from "./app/router.ts";
 import type { Route } from "./app/router.ts";
@@ -27,12 +31,13 @@ import { byId } from "./ui/dom.ts";
  * when the visitor leaves, so only one game is ever running.
  */
 async function main(): Promise<void> {
-  const params = new URLSearchParams(location.search);
-  const seed = params.get("seed") ?? randomSeed();
-  // Live play draws from the OS cryptographic source. A seeded, repeatable generator is only used
-  // when QA asks for one (?seed=, or ?debug, which shows the seed so a run can be replayed).
-  const debugMode = params.has("debug");
-  const rng = params.has("seed") || debugMode ? createRng(seed) : createCryptoRng();
+  // Live play draws from the OS cryptographic source. A seeded, repeatable generator, the QA panel
+  // and the QA hooks exist only in QA: the development server, or a build made with `npm run build:qa`.
+  // The deployed site ignores ?debug and ?seed, so no link can rig a visitor's game.
+  const launch = parseLaunch(location.search, QA_ALLOWED);
+  const debugMode = launch.debug;
+  const seed = launch.seed ?? randomSeed();
+  const rng = wantsRepeatableRng(launch) ? createRng(seed) : createCryptoRng();
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   const store = browserStore();
@@ -50,6 +55,11 @@ async function main(): Promise<void> {
   for (const gesture of ["pointerdown", "keydown"] as const) document.addEventListener(gesture, () => sfx.unlock(), { capture: true });
 
   byId("built-with").textContent = `${BUILT_WITH.name} (${BUILT_WITH.modelId})`;
+
+  // Another tab changed the saved balance: take it, and let every page showing it update.
+  window.addEventListener("storage", (event) => {
+    if (event.key === SETTINGS.walletKey || event.key === null) wallet.reload();
+  });
 
   const topbar = new Topbar({ wallet, sfx, prefs, store });
   buildLobby();
@@ -97,7 +107,7 @@ async function main(): Promise<void> {
 
   // --- QA -----------------------------------------------------------------------------------
 
-  if (debugMode) {
+  if (QA_ALLOWED && debugMode) {
     const machine = (): Record<string, unknown> => machinePage.qa();
     /** Goes to a hash such as "#/play/crucible" and resolves once that page has finished loading. */
     const go = async (hash: string): Promise<void> => {

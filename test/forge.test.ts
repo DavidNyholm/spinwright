@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createRng } from "../src/engine/index.ts";
 import { FORGE, tierIndex, UPGRADE_IDS, upgradeCost } from "../src/forge/config.ts";
 import type { UpgradeId } from "../src/forge/config.ts";
-import { ForgeEngine, parseForgeSave } from "../src/forge/engine.ts";
+import { ForgeEngine, mergeForgeSaves, parseForgeSave } from "../src/forge/engine.ts";
 import type { ForgeBank, ForgeEvent, ForgeSave } from "../src/forge/engine.ts";
 
 interface Rig {
@@ -41,12 +41,16 @@ function advance(forge: ForgeEngine, ms: number, step = 50): void {
   for (let elapsed = 0; elapsed < ms; elapsed += step) forge.tick(Math.min(step, ms - elapsed));
 }
 
-/** Runs the Forge until an ingot is on screen (they only live a few seconds, so a fixed time can miss one). */
-function untilIngot(forge: ForgeEngine): void {
+/**
+ * Runs the Forge until an ingot is on screen (they only live a few seconds, so a fixed time can miss one),
+ * then lets a person's reaction time pass, since a click any sooner is ignored.
+ */
+function untilIngot(forge: ForgeEngine, options: { reacted?: boolean } = {}): void {
   for (let elapsed = 0; forge.state().ingot === null; elapsed += 100) {
     if (elapsed > 200_000) throw new Error("no ingot appeared");
     forge.tick(100);
   }
+  if (options.reacted !== false) forge.tick(FORGE.ingot.minReactionMs);
 }
 
 const strikes = (events: readonly ForgeEvent[]) => events.filter((e): e is Extract<ForgeEvent, { type: "strike" }> => e.type === "strike");
@@ -326,6 +330,27 @@ describe("ingots", () => {
     expect(events.filter((e) => e.type === "ingotAppeared").length).toBe(2);
   });
 
+  it("cannot be caught faster than a person can react, and can be once they could have", () => {
+    const { forge, events, earned } = makeForge({ seed: "reaction" });
+    untilIngot(forge, { reacted: false });
+    const age = (): number => FORGE.ingot.lifetimeMs - forge.state().ingot!.msLeft;
+    expect(age()).toBeLessThan(FORGE.ingot.minReactionMs);
+    forge.catchIngot();
+    expect(forge.state().ingot).not.toBeNull();
+    expect(events.some((e) => e.type === "ingotCaught")).toBe(false);
+    expect(earned()).toBe(0);
+
+    forge.tick(FORGE.ingot.minReactionMs - age() - 1);
+    forge.catchIngot();
+    expect(forge.state().ingot).not.toBeNull();
+
+    forge.tick(1);
+    expect(age()).toBeGreaterThanOrEqual(FORGE.ingot.minReactionMs);
+    forge.catchIngot();
+    expect(forge.state().ingot).toBeNull();
+    expect(events.some((e) => e.type === "ingotCaught")).toBe(true);
+  });
+
   it("does nothing when clicked and there is none", () => {
     const { forge, events, earned } = makeForge();
     forge.catchIngot();
@@ -527,5 +552,27 @@ describe("pacing", () => {
     const fast = playFor(300, 5).state.lifetime;
     // 2.5 times the clicks should earn well over 2.5 times as much, through heat and upgrades.
     expect(fast / slow).toBeGreaterThan(3);
+  });
+});
+
+describe("saving from two tabs", () => {
+  const save = (levels: Partial<Record<UpgradeId, number>>, strikes: number, lifetime: number, bestHeat: number): ForgeSave => ({
+    levels: { hammer: 0, tongs: 0, mainspring: 0, luck: 0, ...levels },
+    strikes,
+    lifetime,
+    bestHeat,
+  });
+
+  it("keeps the larger of every count, so an older tab cannot undo a newer one", () => {
+    const ahead = save({ hammer: 5, mainspring: 2 }, 900, 12_000, 80);
+    const behind = save({ hammer: 1, tongs: 3 }, 100, 500, 95);
+    expect(mergeForgeSaves(ahead, behind)).toEqual(save({ hammer: 5, tongs: 3, mainspring: 2 }, 900, 12_000, 95));
+    expect(mergeForgeSaves(behind, ahead)).toEqual(mergeForgeSaves(ahead, behind));
+  });
+
+  it("changes nothing when the two are the same, and is safe to apply again", () => {
+    const one = save({ hammer: 2 }, 10, 20, 30);
+    expect(mergeForgeSaves(one, one)).toEqual(one);
+    expect(mergeForgeSaves(mergeForgeSaves(one, one), one)).toEqual(one);
   });
 });

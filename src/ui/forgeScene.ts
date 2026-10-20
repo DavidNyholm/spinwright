@@ -1,8 +1,9 @@
 import { Circle, Container, Graphics, Rectangle, Sprite, Text } from "pixi.js";
-import type { Application, Texture } from "pixi.js";
+import type { Application, FederatedPointerEvent, Texture } from "pixi.js";
 import { FORGE } from "../forge/config.ts";
 import { formatAmount } from "../forge/describe.ts";
 import type { ForgeEvent, ForgeState } from "../forge/engine.ts";
+import type { StrikeInput } from "../forge/guard.ts";
 import { gearOutline, METALS, metalGradient, mix, verticalGradient } from "./art/metal.ts";
 import type { Metal } from "./art/metal.ts";
 import { FONT_DISPLAY, PALETTE } from "./art/palette.ts";
@@ -43,9 +44,18 @@ const GEAR_FULL_WIND_RAD = 3 * Math.PI;
 const GEAR_EASE_PER_SECOND = 16;
 
 export interface ForgeSceneHandlers {
-  onStrike(): void;
-  onIngot(): void;
+  onStrike(input: StrikeInput): void;
+  onIngot(input: StrikeInput): void;
 }
+
+/** What the page needs to judge a click: when it happened, whether the browser vouches for it, and where. */
+const pressOf = (event: FederatedPointerEvent): StrikeInput => ({
+  // The hardware's own timestamp stays accurate when the page is busy; Pixi's is when it got round to handling the event.
+  atMs: "timeStamp" in event.nativeEvent ? event.nativeEvent.timeStamp : event.timeStamp,
+  trusted: event.isTrusted,
+  x: event.client.x,
+  y: event.client.y,
+});
 
 export interface ForgeSceneOptions {
   readonly reduceMotion: boolean;
@@ -200,7 +210,7 @@ export class ForgeScene {
 
     app.stage.eventMode = "static";
     app.stage.hitArea = new Rectangle(0, 0, FORGE_STAGE.width, FORGE_STAGE.height);
-    app.stage.on("pointerdown", () => this.#handlers.onStrike());
+    app.stage.on("pointerdown", (event) => this.#handlers.onStrike(pressOf(event)));
 
     this.#hearthGlow.position.set(115, 290);
     this.#workGlow.position.set(ANVIL_X, WORK_CENTRE_Y);
@@ -516,7 +526,7 @@ export class ForgeScene {
     this.#ingot.on("pointerdown", (event) => {
       // The click was for the ingot, not for the anvil underneath it.
       event.stopPropagation();
-      this.#handlers.onIngot();
+      this.#handlers.onIngot(pressOf(event));
     });
   }
 

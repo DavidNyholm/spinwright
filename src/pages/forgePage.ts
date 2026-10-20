@@ -9,7 +9,9 @@ import type { Rng } from "../engine/index.ts";
 import { FORGE, UPGRADE_IDS } from "../forge/config.ts";
 import type { UpgradeId } from "../forge/config.ts";
 import { describeUpgrade, formatAmount, UPGRADE_BLURBS } from "../forge/describe.ts";
-import { ForgeEngine, parseForgeSave } from "../forge/engine.ts";
+import { ForgeEngine, mergeForgeSaves, parseForgeSave } from "../forge/engine.ts";
+import { ClickGuard } from "../forge/guard.ts";
+import type { StrikeInput } from "../forge/guard.ts";
 import type { ForgeEvent, ForgeState } from "../forge/engine.ts";
 import { forgeRules } from "../app/rules.ts";
 import { byId, StyleCell, TextCell } from "../ui/dom.ts";
@@ -21,6 +23,8 @@ const MAX_PIXEL_RATIO = 3;
 const SAVE_INTERVAL_MS = 2_000;
 /** Each strike's sound is varied by up to this much in speed, so a run of strikes does not sound like one recording. */
 const STRIKE_PITCH_JITTER = 0.03;
+/** While the anvil rests, a strike reminds the player at most this often. */
+const REST_REMINDER_MS = 2_500;
 const SPRING_STATES = { off: "Not fitted", spent: "Run down", wound: "Wound", running: "Striking" } as const;
 
 export interface ForgePageDeps {
@@ -66,6 +70,11 @@ export class ForgePage {
   readonly #springFill = new StyleCell(byId("forge-spring-fill"), "width");
   readonly #springDetail = new TextCell(byId("forge-spring-detail"));
   readonly #ingotText = new TextCell(this.#ingotButton);
+  readonly #strikeLabel = new TextCell(this.#strikeButton);
+  /** Judges whether a strike came from a hand. It outlives visits to the page, so leaving and returning does not end a rest. */
+  readonly #guard = new ClickGuard();
+  #restingShown = false;
+  #lastRestNoticeAt = -Infinity;
   readonly #stats = new TextCell(byId("forge-stats"));
   readonly #cards: UpgradeCard[];
 
@@ -82,12 +91,19 @@ export class ForgePage {
     this.#deps = deps;
     this.#cards = this.#buildCards();
     this.#buildHeatTicks();
-    this.#strikeButton.addEventListener("click", () => this.#engine?.strike());
+    this.#strikeButton.addEventListener("click", (event) =>
+      this.#strike({
+        atMs: event.timeStamp,
+        trusted: event.isTrusted,
+        // A click made with the keyboard has no pointer position (detail 0): do not pretend it does.
+        ...(event.detail === 0 ? {} : { x: event.clientX, y: event.clientY }),
+      }),
+    );
     // Holding Enter would otherwise repeat the strike for free; each strike takes its own press.
     this.#strikeButton.addEventListener("keydown", (event) => {
       if (event.repeat) event.preventDefault();
     });
-    this.#ingotButton.addEventListener("click", () => this.#engine?.catchIngot());
+    this.#ingotButton.addEventListener("click", (event) => this.#catchIngot(event.isTrusted));
     byId("forge-info").addEventListener("click", () => showRules(forgeRules()));
   }
 
@@ -116,7 +132,11 @@ export class ForgePage {
     this.#host.replaceChildren(app.canvas);
     document.documentElement.style.setProperty("--aspect", String(FORGE_STAGE.width / FORGE_STAGE.height));
 
-    this.#scene = new ForgeScene(app, { onStrike: () => this.#engine?.strike(), onIngot: () => this.#engine?.catchIngot() }, { reduceMotion: this.#deps.reduceMotion });
+    this.#scene = new ForgeScene(
+      app,
+      { onStrike: (input) => this.#strike(input), onIngot: (input) => this.#catchIngot(input.trusted) },
+      { reduceMotion: this.#deps.reduceMotion },
+    );
     this.#engine = new ForgeEngine({
       bank: { balance: () => wallet.balance, earn: (credits) => wallet.earn(credits), spend: (credits) => wallet.spend(credits) },
       rng,
@@ -167,7 +187,40 @@ export class ForgePage {
     // A focused control handles its own keys; anywhere else, Space or Enter strikes.
     if (target instanceof HTMLElement && target.closest("button, input, select, textarea, a")) return;
     event.preventDefault();
-    this.#engine?.strike();
+    this.#strike({ atMs: event.timeStamp, trusted: event.isTrusted });
+  }
+
+  /** Every way of striking comes here: the guard decides whether it came from a hand before the anvil is touched. */
+  #strike(input: StrikeInput): void {
+    const engine = this.#engine;
+    if (engine === null) return;
+    const verdict = this.#guard.check(input);
+    if (verdict.ok) {
+      engine.strike();
+      return;
+    }
+    switch (verdict.reason) {
+      case "untrusted":
+      case "too-fast":
+        // A script's click, or faster than hands: it earns nothing, and gets no message to tune a bot against.
+        return;
+      case "too-regular":
+        this.#deps.sfx.play("denied");
+        this.#lastRestNoticeAt = input.atMs;
+        this.#setMessage(`That was steadier than a hand can be. The anvil rests for ${Math.ceil(verdict.cooldownMs / 1000)} seconds; the mainspring carries on.`);
+        return;
+      case "cooling":
+        if (input.atMs - this.#lastRestNoticeAt > REST_REMINDER_MS) {
+          this.#lastRestNoticeAt = input.atMs;
+          this.#setMessage(`The anvil is resting for ${Math.ceil(this.#guard.restingMs(input.atMs) / 1000)} more seconds.`);
+        }
+        return;
+    }
+  }
+
+  /** An ingot is caught by a click the browser vouches for; one a script made does nothing. */
+  #catchIngot(trusted: boolean): void {
+    if (trusted) this.#engine?.catchIngot();
   }
 
   // --- each frame ---------------------------------------------------------------------------------------
@@ -205,6 +258,13 @@ export class ForgePage {
       this.#springState.set(label);
       this.#springFill.set(`${(state.wound / state.capacity) * 100}%`);
       this.#springDetail.set(`${Math.floor(state.wound)} of ${state.capacity} turns`);
+    }
+
+    const resting = this.#guard.restingMs(performance.now());
+    this.#strikeLabel.set(resting > 0 ? `${Math.ceil(resting / 1000)} s` : "STRIKE");
+    if ((resting > 0) !== this.#restingShown) {
+      this.#restingShown = resting > 0;
+      this.#strikeButton.dataset["resting"] = String(this.#restingShown);
     }
 
     this.#ingotButton.hidden = state.ingot === null;
@@ -298,9 +358,11 @@ export class ForgePage {
 
   #save(): void {
     if (this.#engine === null) return;
-    const save = this.#engine.toSave();
-    writeJson(this.#deps.store, SETTINGS.forgeKey, save);
-    this.#savedSnapshot = JSON.stringify(save);
+    const mine = this.#engine.toSave();
+    // Another tab may have saved further on; never write a smaller number over it.
+    const stored = readJson(this.#deps.store, SETTINGS.forgeKey, parseForgeSave);
+    writeJson(this.#deps.store, SETTINGS.forgeKey, stored === null ? mine : mergeForgeSaves(stored, mine));
+    this.#savedSnapshot = JSON.stringify(mine);
     this.#sinceSaveMs = 0;
   }
 
@@ -359,6 +421,10 @@ export class ForgePage {
       engine: this.#engine,
       scene: () => this.#scene?.qa() ?? null,
       state: () => this.#engine?.state(),
+      /** Strikes the way a hand does, through the guard, as if the event had happened at the time and place given. */
+      press: (input: StrikeInput): void => this.#strike(input),
+      /** How long the anvil has left to rest, in milliseconds. */
+      resting: (): number => this.#guard.restingMs(performance.now()),
       /** Steps the forge by hand, at 60 fps of simulated time, so QA does not depend on the browser's frame rate. */
       advance: (ms: number): void => {
         for (let elapsed = 0; elapsed < ms; elapsed += frameMs) this.#frame(frameMs);

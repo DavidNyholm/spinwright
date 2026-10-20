@@ -86,6 +86,22 @@ export function parseForgeSave(value: unknown): ForgeSave {
 }
 
 /**
+ * Combines two saves of the same player's Forge, keeping the larger of every count. Upgrade levels, strikes,
+ * credits earned and the best heat only ever grow, so when two tabs both save, neither can undo
+ * what the other did by writing its older, smaller numbers over it.
+ */
+export function mergeForgeSaves(a: ForgeSave, b: ForgeSave): ForgeSave {
+  const levels = emptyLevels();
+  for (const id of UPGRADE_IDS) levels[id] = Math.max(a.levels[id], b.levels[id]);
+  return {
+    levels,
+    strikes: Math.max(a.strikes, b.strikes),
+    lifetime: Math.max(a.lifetime, b.lifetime),
+    bestHeat: Math.max(a.bestHeat, b.bestHeat),
+  };
+}
+
+/**
  * The Forge's rules. Time only moves when tick() is called with how much has passed, and randomness
  * only comes from the rng it is given, so a run is exactly repeatable and can be played in a test.
  */
@@ -154,9 +170,10 @@ export class ForgeEngine {
     return true;
   }
 
-  /** Clicks the ingot, if there is one. */
+  /** Clicks the ingot, if there is one and a person could have reacted to it by now. */
   catchIngot(): void {
     if (this.#ingot === null) return;
+    if (FORGE.ingot.lifetimeMs - this.#ingot.msLeft < FORGE.ingot.minReactionMs) return;
     const rules = FORGE.ingot;
     const luck = this.#levels.luck;
     this.#ingot = null;

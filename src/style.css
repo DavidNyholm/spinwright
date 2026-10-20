@@ -880,6 +880,11 @@ a.brass-button:focus-visible {
   font-size: 1.6rem;
 }
 
+/* The anvil is resting after strikes too even to be a hand's: dimmed, with the seconds left on its face. */
+.strike[data-resting="true"] {
+  filter: saturate(0.15) brightness(0.65);
+}
+
 .meter {
   position: relative;
   height: 14px;

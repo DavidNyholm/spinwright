@@ -146,3 +146,84 @@ describe("prefs", () => {
     expect(load(store)).toEqual(DEFAULTS);
   });
 });
+
+describe("Wallet across tabs", () => {
+  /** Two tabs: two wallet objects over the one saved balance, as two open pages share localStorage. */
+  const twoTabs = (balance = 1_000) => {
+    const store = memoryStore();
+    return { store, a: new Wallet(store, KEY, balance), b: new Wallet(store, KEY, balance) };
+  };
+  const saved = (store: ReturnType<typeof memoryStore>): number => JSON.parse(store.getItem(KEY)!).balance;
+
+  it("does not bring spent credits back: spend all in one tab, earn a little in the other", () => {
+    const { store, a, b } = twoTabs();
+    a.spend(1_000);
+    b.earn(5);
+    expect(saved(store)).toBe(5);
+    expect(b.balance).toBe(5);
+  });
+
+  // One check per way in, each on its own stale tab: a tab that has already looked at the balance would be up to date.
+  it("does not let a stale tab spend credits that are gone", () => {
+    const { a, b } = twoTabs();
+    a.spend(1_000);
+    expect(() => b.spend(1)).toThrow(RangeError);
+    expect(b.balance).toBe(0);
+  });
+
+  it("does not let a stale tab place a bet with credits that are gone", () => {
+    const { a, b } = twoTabs();
+    a.spend(1_000);
+    expect(() => b.settle(1, 0)).toThrow(RangeError);
+    expect(b.balance).toBe(0);
+  });
+
+  it("does not let a stale tab think it can afford what is gone", () => {
+    const { a, b } = twoTabs();
+    a.spend(1_000);
+    expect(b.canAfford(1)).toBe(false);
+  });
+
+  it("does not lose credits another tab earned", () => {
+    const { store, a, b } = twoTabs();
+    a.earn(500);
+    b.settle(100, 0);
+    expect(saved(store)).toBe(1_400);
+    a.settle(50, 20);
+    expect(saved(store)).toBe(1_370);
+  });
+
+  it("takes a change from another tab when told to, and says so once", () => {
+    const { a, b } = twoTabs();
+    const seen: number[] = [];
+    b.onChange((balance) => seen.push(balance));
+    a.earn(250);
+    expect(b.balance).toBe(1_000);
+    b.reload();
+    expect(b.balance).toBe(1_250);
+    b.reload();
+    expect(seen).toEqual([1_250]);
+  });
+
+  it("does not announce its own changes a second time", () => {
+    const { b } = twoTabs();
+    const seen: number[] = [];
+    b.onChange((balance) => seen.push(balance));
+    b.earn(10);
+    b.reload();
+    expect(seen).toEqual([1_010]);
+  });
+
+  it.each([["not json at all"], ['{"balance":-5}'], ['{"balance":1.5}'], ['{"balance":"9999"}'], ['{"balance":1e21}'], ["null"], ["[]"], ['{"balance":null}']])(
+    "ignores a saved balance that is damaged or forged (%s) and keeps the one it has",
+    (garbage) => {
+      const { store, a } = twoTabs();
+      store.setItem(KEY, garbage);
+      a.reload();
+      expect(a.balance).toBe(1_000);
+      expect(a.canAfford(1_000)).toBe(true);
+      a.earn(1);
+      expect(saved(store)).toBe(1_001);
+    },
+  );
+});

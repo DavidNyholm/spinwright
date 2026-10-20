@@ -11,6 +11,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:qa": "vite build --mode qa --outDir dist-qa",
+    "check:build": "vite build && node scripts/verifyBuild.ts dist && vite build --mode qa --outDir dist-qa && node scripts/verifyBuild.ts dist-qa --qa",
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.engine.json --noEmit",

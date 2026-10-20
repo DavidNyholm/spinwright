@@ -9,6 +9,7 @@ import { winCountDuration } from "../app/winCount.ts";
 import type { Sfx } from "../audio/sfx.ts";
 import type { Rng } from "../engine/index.ts";
 import { MACHINES } from "../machines/index.ts";
+import { QA_ALLOWED } from "../app/qa.ts";
 import { byId } from "../ui/dom.ts";
 import { showRules } from "../ui/infoDialog.ts";
 import { createDebugPanel } from "../ui/debugPanel.ts";
@@ -68,6 +69,12 @@ export class MachinePage {
     });
     this.#hud.setTurbo(prefs.turbo);
     this.#hud.setMessage("Loading…");
+    // A change from another tab (or the Forge) while this page is idle shows at once; during a round the page is in charge of what is shown.
+    deps.wallet.onChange((balance) => {
+      if (!this.#active || this.#busy || this.#loading || this.#machine === null) return;
+      this.#hud.setBalance(balance);
+      this.#refreshMoney();
+    });
     byId("machine-info").addEventListener("click", () => {
       if (this.#machine !== null) showRules(this.#machine.rules());
     });
@@ -109,7 +116,7 @@ export class MachinePage {
 
     this.#machine = next;
     document.body.dataset["machine"] = entry.id;
-    this.#debug = this.#deps.debugMode ? createDebugPanel({ seed: this.#deps.seed, stopLimits: next.forcedStopLimits }) : null;
+    this.#debug = QA_ALLOWED && this.#deps.debugMode ? createDebugPanel({ seed: this.#deps.seed, stopLimits: next.forcedStopLimits }) : null;
     this.#loading = false;
     this.#refreshBet();
     this.#refreshMoney();

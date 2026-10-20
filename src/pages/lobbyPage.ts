@@ -2,7 +2,7 @@ import { CATALOG } from "../app/catalog.ts";
 import type { CatalogEntry } from "../app/catalog.ts";
 import { routeToHash } from "../app/router.ts";
 import { byId } from "../ui/dom.ts";
-import { emblemSvg } from "../ui/emblems.ts";
+import { drawEmblem } from "../ui/emblems.ts";
 
 const KIND_LABELS: Readonly<Record<CatalogEntry["kind"], string>> = { slot: "Slot machine", clicker: "Clicker" };
 
@@ -15,8 +15,7 @@ function card(entry: CatalogEntry): HTMLLIElement {
 
   const emblem = document.createElement("div");
   emblem.className = "card-emblem";
-  // The drawings are fixed strings from emblems.ts, never page or user input.
-  emblem.innerHTML = emblemSvg(entry.emblem);
+  emblem.append(drawEmblem(entry.emblem));
 
   const tag = document.createElement("div");
   tag.className = "card-tag";

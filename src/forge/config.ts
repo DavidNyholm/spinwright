@@ -69,6 +69,8 @@ export const FORGE = {
     minIntervalMs: 25_000,
     maxIntervalMs: 55_000,
     lifetimeMs: 9_000,
+    /** A click on an ingot sooner than this after it appears is ignored: faster than a person can react, so not a hand. */
+    minReactionMs: 150,
     /** Each level of luck multiplies the wait between ingots by this. */
     intervalPerLuckLevel: 0.92,
     /** The chance an ingot is a windfall rather than a frenzy. */
