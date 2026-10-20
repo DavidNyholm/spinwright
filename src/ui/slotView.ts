@@ -178,10 +178,19 @@ export class SlotView {
       this.#frames.stroke(stroke);
     }
     if (line !== null) {
+      // Trace the payline only as far as the win reaches, and change rows in the gap between two
+      // reels rather than cutting diagonally across cells that are not part of the win.
+      const reached = line.slice(0, positions.length);
       for (const stroke of GLOW_STROKES) {
-        line.forEach((row, reel) => {
-          if (reel === 0) this.#path.moveTo(cellCenterX(reel), cellCenterY(row));
-          else this.#path.lineTo(cellCenterX(reel), cellCenterY(row));
+        reached.forEach((row, reel) => {
+          const x = cellCenterX(reel);
+          const y = cellCenterY(row);
+          if (reel === 0) {
+            this.#path.moveTo(x, y);
+            return;
+          }
+          const gapX = reelX(reel) - LAYOUT.reelGap / 2;
+          this.#path.lineTo(gapX, cellCenterY(reached[reel - 1]!)).lineTo(gapX, y).lineTo(x, y);
         });
         this.#path.stroke({ ...stroke, join: "round", cap: "round" });
       }

@@ -1,17 +1,19 @@
 import { parseArgs } from "node:util";
 import { createRng, exactRtp, spin } from "../engine/index.ts";
 import { games } from "../games/index.ts";
+import { runCascadeSim } from "./cascadeSim.ts";
 import { createStats, record, summarize, WIN_BANDS } from "./stats.ts";
 
-const DEFAULTS = { game: "classic", spins: "1000000", seed: "spinwright-sim", lineBet: "1" } as const;
+const DEFAULTS = { game: "classic", spins: "1000000", seed: "spinwright-sim", lineBet: "1", sessions: "200000" } as const;
 /** A simulated RTP further than this many standard errors from the exact value means a bug, not bad luck. */
 const MAX_Z = 4;
 
-const USAGE = `Usage: npm run sim -- [--game <id>] [--spins <n>] [--seed <text>] [--line-bet <n>]
+const USAGE = `Usage: npm run sim -- [--game <id>] [--spins <n>] [--seed <text>] [--line-bet <n>] [--sessions <n>]
   --game       one of: ${Object.keys(games).join(", ")} (default ${DEFAULTS.game})
-  --spins      number of spins to simulate (default ${DEFAULTS.spins})
+  --spins      number of spins (plays) to simulate (default ${DEFAULTS.spins})
   --seed       RNG seed; the same seed gives the same run (default "${DEFAULTS.seed}")
-  --line-bet   credits per payline; RTP does not depend on it (default ${DEFAULTS.lineBet})`;
+  --line-bet   credits per bet unit, which is per payline in a line game; RTP does not depend on it (default ${DEFAULTS.lineBet})
+  --sessions   cascade games only: feature sessions to simulate on their own (default ${DEFAULTS.sessions})`;
 
 function fail(message: string): never {
   console.error(`${message}\n\n${USAGE}`);
@@ -33,6 +35,7 @@ const { values } = parseArgs({
     spins: { type: "string", default: DEFAULTS.spins },
     seed: { type: "string", default: DEFAULTS.seed },
     "line-bet": { type: "string", default: DEFAULTS.lineBet },
+    sessions: { type: "string", default: DEFAULTS.sessions },
     help: { type: "boolean", short: "h", default: false },
   },
   strict: true,
@@ -42,10 +45,22 @@ if (values.help) {
   process.exit(0);
 }
 
-const game = games[values.game];
-if (game === undefined) fail(`Unknown game "${values.game}"`);
+const entry = games[values.game];
+if (entry === undefined) fail(`Unknown game "${values.game}"`);
 const spins = parsePositiveInt("spins", values.spins, 2);
 const lineBet = parsePositiveInt("line-bet", values["line-bet"], 1);
+
+if (entry.kind === "cascade") {
+  const sessions = parsePositiveInt("sessions", values.sessions, 2);
+  const { report, agrees } = runCascadeSim(entry.config, { plays: spins, sessions, seed: values.seed, unitBet: lineBet });
+  console.log(report);
+  if (!agrees) {
+    console.error("\nThe end-to-end feature return and the by-parts estimate disagree: the feature logic and its exact trigger chance are inconsistent.");
+    process.exit(1);
+  }
+  process.exit(0);
+}
+const game = entry.config;
 
 const rng = createRng(values.seed);
 const stats = createStats();

@@ -33,10 +33,10 @@ function winCountDuration(win: number, totalBet: number): number {
 }
 
 async function main(): Promise<void> {
-  const selected = games[GAME_ID];
-  if (selected === undefined) throw new Error(`Unknown game "${GAME_ID}"`);
+  const entry = games[GAME_ID];
+  if (entry?.kind !== "lines") throw new Error(`"${GAME_ID}" is not a line game`);
   // Re-bound with its own type so the check above still holds inside the closures below.
-  const game: GameConfig = selected;
+  const game: GameConfig = entry.config;
 
   const params = new URLSearchParams(location.search);
   const seed = params.get("seed") ?? randomSeed();
@@ -147,7 +147,7 @@ async function main(): Promise<void> {
       case "all":
         return `You won ${formatCredits(result.totalWin)} credits`;
       case "line":
-        return `Line ${step.win.line + 1}: ${step.win.count} × ${CLOCKWORK.name(step.win.symbol)} pays ${formatCredits(step.win.win)}`;
+        return `Line ${step.win.line + 1}: ${step.win.count} × ${CLOCKWORK.name(step.win.symbol)} on reels 1-${step.win.count} pays ${formatCredits(step.win.win)}`;
       case "scatter":
         return `${step.win.count} × ${CLOCKWORK.name(step.win.symbol)} pays ${formatCredits(step.win.win)}`;
     }
