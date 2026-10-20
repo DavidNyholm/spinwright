@@ -3,6 +3,7 @@ import type { Container, Renderer, Texture } from "pixi.js";
 import type { SymbolId } from "../engine/index.ts";
 import { CLOCKWORK_NAMES, drawClockworkSymbol } from "./art/clockwork.ts";
 import { drawFoundrySymbol, FOUNDRY_NAMES } from "./art/foundry.ts";
+import { drawMintSymbol, MINT_NAMES } from "./art/mint.ts";
 
 /**
  * A theme is the look of a game's symbols. The reels only ask for one Texture per symbol id, so a
@@ -25,6 +26,12 @@ export const FOUNDRY: SymbolTheme = {
   id: "foundry",
   name: (symbol) => FOUNDRY_NAMES[symbol] ?? symbol,
   draw: drawFoundrySymbol,
+};
+
+export const MINT: SymbolTheme = {
+  id: "mint",
+  name: (symbol) => MINT_NAMES[symbol] ?? symbol,
+  draw: drawMintSymbol,
 };
 
 /** Textures are drawn at this multiple of stage size so they stay sharp on high-density screens. */

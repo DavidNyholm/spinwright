@@ -1,8 +1,8 @@
 # Spinwright
 
-A small workshop of play-money games: two slot machines built around pure TypeScript math engines (with Monte Carlo simulators that prove the maths), and a clicker, the Forge, that earns the credits to play them. A PixiJS browser front end ties them together behind a lobby. Credits are virtual only. There are no payments, accounts or real-money features anywhere in this project.
+A small workshop of play-money games: three slot machines built around pure TypeScript math engines (checked by exact calculation and by Monte Carlo simulation), and a clicker, the Forge, that earns the credits to play them. A PixiJS browser front end ties them together behind a lobby. Credits are virtual only. There are no payments, accounts or real-money features anywhere in this project.
 
-**Status:** the lobby, both machines, the Forge, sound, the "how it works" pages, the security hardening and the simulators are done. A third machine (hold and win) is next; the GitHub Pages deploy is held back until the project is judged ready. See the [roadmap](#roadmap).
+**Status:** the lobby, all three machines (Clockwork, Crucible and Mint), the Forge, sound, the "how it works" pages, the security hardening and the simulators are done. What is left is a person's ears on the sound and a person's hands on the Forge's pacing, and the GitHub Pages deploy, which is held back until the project is judged ready. See the [roadmap](#roadmap).
 
 ## Play it locally
 
@@ -13,7 +13,7 @@ npm install
 npm run dev
 ```
 
-Then open the address Vite prints: it opens on the lobby, with a card for each game. Pages are addresses in the URL hash (`#/`, `#/play/classic`, `#/play/crucible`, `#/forge`), so the back button works and a page can be linked to. On a machine, Space or Enter spins, and pressing it mid-spin plays the rest of the round quickly. Balance, bet, turbo, sound and the Forge's upgrades are saved in the browser. There is no free refill: when the credits run out, the machines point you to the Forge. Every game has a **How it works** button beside its name that opens its rules: the paytable, how the multiplier climbs, what the scatters and features do, the win cap, the price of the bonus and the return.
+Then open the address Vite prints: it opens on the lobby, with a card for each game. Pages are addresses in the URL hash (`#/`, `#/play/classic`, `#/play/crucible`, `#/play/mint`, `#/forge`), so the back button works and a page can be linked to. On a machine, Space or Enter spins, and pressing it mid-spin plays the rest of the round quickly. Balance, bet, turbo, sound and the Forge's upgrades are saved in the browser. There is no free refill: when the credits run out, the machines point you to the Forge. Every game has a **How it works** button beside its name that opens its rules: the paytable, how the multiplier climbs, what the scatters, coins and features do, the win cap where there is one, the price of the bonus and the return.
 
 The look is a brass workshop, drawn entirely with code: engraved metal plates, gears, gems, a dark iron cabinet with amber displays. There are no image files. To review the artwork on its own, open `/symbols.html` on the dev server.
 
@@ -53,13 +53,33 @@ Measured over 4 million plays (see the simulator below):
 | Hit frequency | 62% |
 | Volatility | sd about 10x the bet per play |
 
+**No. 3 Mint** is a five-reel, three-row, twenty-line machine with no wild and no scatter, whose bonus is **hold and win**. The coin pays nothing by itself, but **six or more anywhere on the opening spin lock in place and turn over to show what each is worth**, and the respins begin: three of them, in which every empty cell has a one-in-fifteen chance of filling with a coin. **A new coin sets the respins back to three**; a respin that fills nothing uses one up. When none are left, the feature pays every coin on the board. A coin is worth between half the total bet and eight times it, except that one in twenty is a named jackpot: Mini (10 times the bet), Minor (25) or Major (100). Fill all fifteen cells and the Grand, 500 times the bet, is paid on top.
+
+Unlike Clockwork's free spins, this feature can be **solved exactly**. Where a coin sits makes no difference (every empty cell fills with the same chance, and a coin's value never changes what happens next), so the board is a short chain of states, the number of coins on it and the respins left, solved from the full board backwards. The whole return is therefore a calculation, and the simulator is a check on the engine, not the source of the figure.
+
+Everything below is exact except the volatility and the biggest win, which are from 3 million simulated rounds:
+
+| | Mint |
+|---|---|
+| Return to player | 96.03%, exactly (simulated over 3 million rounds: 95.84% +/- 0.74%) |
+| Of which lines / hold and win | 62.5% / 33.5% |
+| Hold and win starts | 1 in 90 spins (six coins or more anywhere) |
+| Average hold and win | 29.7x the bet from six coins (four starts in five), 31.4x from seven, 33.6x from eight, 36.2x from nine |
+| Across every start | 30.2x the bet (sd 52x), 9.4 coins on the board at the end, 7.3 respins |
+| Full board (the Grand) | 0.81% of features from six coins, about one in 120 |
+| Hit frequency | 29.7% of rounds win something, and every win pays more than the bet (at least 1.1x; a hold and win pays at least 3x) |
+| Volatility | sd about 6.6x the bet per round |
+| Biggest win in 3 million rounds | 816x the bet |
+
+The base game is an ordinary line game, played and worked out by the line engine, so it follows the rule Clockwork now does: no win pays less than the bet.
+
 ## Buying the bonus
 
-Both machines let you skip the wait and **buy their feature** with play-money credits: a bar under the controls shows the price, and a confirmation (a real dialog, so Escape cancels) comes first, because a buy costs many times a spin.
+All three machines let you skip the wait and **buy their feature** with play-money credits: a bar under the controls shows the price, and a confirmation (a real dialog, so Escape cancels) comes first, because a buy costs many times a spin.
 
-- **What you get:** the feature at once, with no opening spin, exactly as if the fewest scatters that start it had landed: Clockwork's eight free spins, or Crucible's ten furnace spins from a fresh heat. The small scatter pay a natural trigger carries is not included.
-- **The price** is a multiple of your total bet, so it grows with the bet: **40 times** the bet on Clockwork, **79 times** on Crucible. Each was set from the feature's measured average value (38.0 times the bet on Clockwork, 75.3 times on Crucible), so a buy returns **94.9% and 95.3% of its price** on average: a little under what a spin on the same machine returns.
-- **It is a gamble like any other.** Most buys pay less than they cost (Crucible's median feature is worth 50 times the bet, against a price of 79), and a few pay far more. The dialog says so.
+- **What you get:** the feature at once, with no opening spin, exactly as if the fewest scatters that start it had landed: Clockwork's eight free spins, Crucible's ten furnace spins from a fresh heat, or Mint's hold and win from six coins in cells chosen at random. The small scatter pay a natural trigger carries is not included.
+- **The price** is a multiple of your total bet, so it grows with the bet: **40 times** the bet on Clockwork, **79 times** on Crucible, **31 times** on Mint. Each was set from the feature's average value (38.0 times the bet on Clockwork and 75.3 on Crucible, measured; 29.7 on Mint, exact), so a buy returns **94.9%, 95.3% and 95.8% of its price** on average: a little under what a spin on the same machine returns.
+- **It is a gamble like any other.** Most buys pay less than they cost (Crucible's median feature is worth 50 times the bet, against a price of 79, and three of every four Mint buys pay less than the 31 times they cost), and a few pay far more. The dialog says so.
 - **It goes through the same wallet rules as a spin:** the price is taken and the outcome banked the moment you confirm, before anything is animated, so leaving the page or refreshing mid-feature loses nothing. The buy is disabled while a round is playing or when the balance cannot cover it.
 
 ## The Forge
@@ -77,10 +97,10 @@ Every number that sets how the Forge plays is in `src/forge/config.ts`, and the 
 ## How it works
 
 - **The outcome is decided first, then animated.** A round is resolved completely (every grid, every win, the total) before anything moves. The UI only plays back a result that already exists, the same split real slot software uses. The win is banked in the wallet the moment the outcome is drawn, so a page refresh mid-spin cannot lose it.
-- **Two engines, one page.** The line engine and the cascade engine are separate, pure, DOM-free modules. A small `Machine` interface (plan a round, show it, quick-stop it) is all the page knows, so the wallet, bet, spin button and readouts are shared and a new machine is a new `Machine`.
+- **Three engines, one page.** The line engine, the cascade engine and the hold-and-win engine (which plays its base game with the line engine and adds its own feature) are separate, pure, DOM-free modules. A small `Machine` interface (plan a round, show it, quick-stop it) is all the page knows, so the wallet, bet, spin button and readouts are shared and a new machine is a new `Machine`.
 - **The Forge is a rules engine with a clock you hand it.** `ForgeEngine` only moves when `tick(ms)` is called and only draws randomness from the generator it is given, so a whole session can be played in a test. The Pixi scene draws what it reports (events and state) and decides nothing.
 - **One game at a time.** Each page is built when you visit it and torn down when you leave, so leaving a machine mid-spin (the win is already in the wallet) or the Forge (progress is saved) leaves nothing running.
-- **Games are data.** A game is a validated config (reel strips and paylines, or gem weights and cluster pays). `defineGame` and `defineCascadeGame` throw one error listing every problem when the module loads.
+- **Games are data.** A game is a validated config (reel strips and paylines, or gem weights and cluster pays, or a line game and its coin table). `defineGame`, `defineCascadeGame` and `defineHoldGame` throw one error listing every problem when the module loads.
 - **Whole credits only.** Bets and wins are integers, so there is no floating-point drift in anyone's balance.
 - **Reproducible.** Every simulation and QA run takes a seed, and the same seed gives the same spins.
 - **The engines have no browser code.** A second TypeScript config type-checks `src/engine`, `src/games`, the Forge's rules (`src/forge`), the router and the catalog without the DOM library, so they stay runnable in Node and could move to a server.
@@ -95,6 +115,7 @@ Every sound is synthesised by code (`src/audio`), the way the artwork is drawn b
 - **Crucible:** the new fill lands as a rolling arpeggio, one note per column. Each step of a cascade plays a note one rung higher on a pentatonic ladder as the heat climbs, then a glass-shattering burst. Embers crackle, and the furnace lights with a rising roar and settles into a low rumble for the feature.
 - **Wins:** four tiers of bell jingle by size, coin ticks while the counter rolls up.
 - **Clockwork's free spins:** each scatter chimes a step higher as it lands, a rising shimmer (as long as the hold itself) plays while the reels hold on for the third, and a cog seats with a thunk, a tick and a ring as each wild locks.
+- **Mint's hold and win:** a coin turning over (a rush of air, then a small bell), a coin landing (a thunk and a ring of metal partials, a little higher for each coin that lands together), and a fanfare for the named jackpots and the Grand.
 - **Forge:** a hammer on iron (a low thump under an inharmonic ring, so it sounds like metal and not a bell) that rings brighter at each heat tier, a lighter higher tap for the mainspring's hammer, gears and a chime for an upgrade, a dull thunk for a purchase you cannot afford, and bells for an ingot and a frenzy.
 - **Safety:** a limiter sits before the speakers so many sounds at once cannot clip, and the voice count is capped.
 
@@ -127,6 +148,7 @@ Honest answer: it is pseudo-random, not hardware-random, like every software slo
 ```bash
 npm run sim -- --spins 3_000_000                        # Clockwork
 npm run sim -- --game crucible --spins 4_000_000        # Crucible
+npm run sim -- --game mint --spins 3_000_000            # Mint
 ```
 
 Clockwork's opening spin has an exact answer, so the simulator checks it directly; its free spins have none (the locked wilds make each spin depend on the last), so it reports the return two ways and requires them to agree: end to end, and as the exact chance of each trigger times the value of features simulated on their own.
@@ -151,17 +173,28 @@ RTP by parts   95.54% +/- 0.16% (base + exact trigger chance x 800,000 simulated
 Trigger        1 in 110.6 simulated, 1 in 111.2 exact
 ```
 
-Both print a win-size distribution, and exit non-zero if the two estimates disagree by more than four standard errors.
+Mint's whole return has an exact answer, so there the simulator is a check, not a source: whole bets played end to end must match the exact opening spin and the exact hold and win, and features played on their own from each number of starting coins must match the exact value of each.
+
+```
+RTP            95.84% +/- 0.74% (95% CI, end to end)   exact 96.025%
+  opening spin 62.34%   exact 62.51%   z = -1.62  ok
+  hold and win 33.50%   exact 33.51%   z = -0.04  ok
+Trigger        1 in 90.1 simulated, 1 in 90.0 exact
+   6 coins   1 in 113.0     exact value 29.69x, simulated 29.59x   z = -0.83  ok   full board 0.81%
+   8 coins   1 in 2000.0    exact value 33.55x, simulated 33.69x   z = 1.11  ok   full board 1.06%
+```
+
+All three print a win-size distribution, and exit non-zero if two estimates of the same thing disagree by more than four standard errors.
 
 ## QA tools
 
-QA tools exist only in the development server (`npm run dev`) and in a QA build (`npm run build:qa`, written to `dist-qa/`, which must never be deployed); the deployed site ignores every parameter below. Add `?debug` to the page address to get a QA panel: force exact reel stops on Clockwork to reproduce a layout, and see the raw outcome of the last round on either machine. `?seed=anything` makes a whole run repeatable, so a bug report can be replayed exactly. With `?debug` the page also exposes `window.spinwright`, which QA scripts use to read what is actually drawn, to move between pages (`go('#/forge')`), and to step the animation at a fixed frame rate regardless of how fast the browser is running. On the Forge, `window.spinwright.forge` gives the engine, its state and `advance(ms)`, which cranks the clock by hand.
+QA tools exist only in the development server (`npm run dev`) and in a QA build (`npm run build:qa`, written to `dist-qa/`, which must never be deployed); the deployed site ignores every parameter below. Add `?debug` to the page address to get a QA panel: force exact reel stops on Clockwork to reproduce a layout, and see the raw outcome of the last round on either machine. `?seed=anything` makes a whole run repeatable, so a bug report can be replayed exactly. With `?debug` the page also exposes `window.spinwright`, which QA scripts use to read what is actually drawn, to move between pages (`go('#/forge')`), and to step the animation at a fixed frame rate regardless of how fast the browser is running. On the Forge, `window.spinwright.forge` gives the engine, its state and `advance(ms)`, which cranks the clock by hand. On Mint, `coinCells()` lists the coins the screen shows and what each says, `litPrizes()` the prizes lit on the ladder, and `readouts()` the respin pips, the count and the total in the band under the reels.
 
 ## How it is checked
 
 **Line engine.** The exact return of an opening spin is computed analytically and tested against full enumeration of every stop combination on a small game (agreement to 12 decimal places) and against a 1M-round simulation of the real game. Wild substitution, scatter behaviour, runs that must start on the first reel and bet scaling each have explicit cases.
 
-**The "how it works" pages.** Each page is written from the game's own configuration (`src/app/rules.ts`), never typed by hand, so it cannot drift from the rules: every paytable cell is read from the same table the engine pays from, and the multiplier ladder, the trigger counts, the spins, the cap and the buy price are all read from the config. Tests require each cell to equal the real pay, the numbers in the text to equal the config's, a worked example to come out right, a changed config to change the page, and a game with no feature or no scatter to say nothing about one. The sentence that no win pays less than the bet is worked out from the pays, and a table with one small pay makes it vanish. The pages were opened in a real browser on all three games: Escape and the Got it button close them and return focus to the button, and at phone width a wide paytable scrolls inside its own box while the page does not.
+**The "how it works" pages.** Each page is written from the game's own configuration (`src/app/rules.ts`), never typed by hand, so it cannot drift from the rules: every paytable cell is read from the same table the engine pays from, and the multiplier ladder, the trigger counts, the spins, the cap and the buy price are all read from the config. Tests require each cell to equal the real pay, the numbers in the text to equal the config's, a worked example to come out right, a changed config to change the page, and a game with no feature or no scatter to say nothing about one. The sentence that no win pays less than the bet is worked out from the pays, and a table with one small pay makes it vanish. The pages were opened in a real browser on Clockwork, Crucible and the Forge: Escape and the Got it button close them and return focus to the button, and at phone width a wide paytable scrolls inside its own box while the page does not.
 
 **Security.**
 - A test scans every source file for the calls that write markup into a page, turn a string into code, load code at run time or touch the network (`fetch`, WebSocket, beacon, workers, dynamic imports), and has its own scanner checked against samples of each. The page is checked for inline script, style and handlers, and the policy for anything that weakens it.
@@ -171,7 +204,7 @@ QA tools exist only in the development server (`npm run dev`) and in a QA build 
 - In a real browser, on the production build: `?debug&seed=...` did nothing (no QA panel, nothing on `window`); normal use of all three games and every dialog produced no policy violations; and each attack above was refused. On the Forge, thirty script-made strikes earned nothing and real clicks earned. The resting behaviour was checked on the development server, because its QA hook can deliver strikes with timing of my choosing, which no browser tool can do with real clicks: a machine-even run was stopped on its 21st strike (the button greyed with the seconds left), the second flag rested for 16 seconds, and real clicks during the rest were refused. The real-click timing of an actual auto-clicker was not tested; the guard's tests use simulated timelines.
 
 **Bonus buy.**
-- Each price is tied to measurement: tests simulate 100,000 features per machine and require that the average value divided by the price falls between 93% and 97.5%, and that most buys pay less than they cost. Change a feature, and its price fails the suite until it is set again from `npm run sim`, which prints what a buy returns.
+- Each price is tied to measurement: tests simulate 100,000 features per machine (Mint's is exact, and held to the same band) and require that the average value divided by the price falls between 93% and 97.5%, and that most buys pay less than they cost. Change a feature, and its price fails the suite until it is set again from `npm run sim`, which prints what a buy returns.
 - A bought feature is the same feature the simulator measures: bought and simulated features played from the same random numbers win exactly the same. The win cap, the price's scaling with the bet and the rejection of a game with nothing to buy each have cases.
 - Driven in a real browser on both machines: the price follows the bet (checked again after the Clockwork rebalance: 800 at the smallest bet and 1,600 at the next), cancelling from the button and with the Escape key buys nothing, an unaffordable buy is disabled, and a confirmed buy of each machine charged the price at once, played the feature, and left the on-screen win, balance and wallet in agreement with the result that was decided.
 
@@ -186,6 +219,14 @@ QA tools exist only in the development server (`npm run dev`) and in a QA build 
 - A small game's feature is solved **exactly** by a calculation written independently of the engine (every stop on every spin, carrying locked cells, spins played and spins left), with two rows so the numbering of cells is exercised; the engine's simulated average must match it within sampling error, and a second check confirms that the answer would be far off if wilds did not lock.
 - The exact chance of a trigger is checked against enumeration of every opening grid. Which reels hold on for a scatter is a plain function with its own tests.
 
+**Hold and win (Mint).**
+- The feature is played by hand with a scripted random source: the order of the draws is pinned (the starting coins' values, then each respin's cells in order, a cell's value straight after it fills), a coin resets the respins even on the last one, a respin that fills nothing uses one up, a full board ends the feature at once and pays the Grand, and a jackpot coin keeps its name. A bought feature's shuffle is played by hand too.
+- Over 12,000 random rounds on the real game and 20,000 on a small one whose board often fills, every round is checked: the feature starts exactly when the coins on the grid reach the minimum and starts with those coins, no cell fills twice, the respins and counts add up after every respin, it ends only because the board is full or the respins ran out, and the money adds up coin by coin.
+- The exact value is checked against a solver written independently of it, which enumerates every set of cells that can fill on every respin and every assignment of coin values, over the actual cells that are filled. It agrees to nine decimal places with the engine's chain on four different boards, from every starting count up to five and for several placements of the coins at each, so "only the count matters" is shown and not assumed. The whole game's return agrees to twelve places with an enumeration of every opening spin of a small game.
+- Features simulated from 2, 3 and 4 coins agree with the exact value within four standard errors, and the same simulation is shown to be far from what the chain would give if a coin did not reset the respins, so the check can tell the rule from its absence.
+- On Mint itself: the pay ladder and its floors (every line win pays 1.1 times the bet or more and every hold and win at least 3 times, over 120,000 rounds), where the coins sit on the reels, the trigger chance (1 in 90), the exact return (96.0%) and the shape of the jackpots are pinned; a simulated opening spin and features from six and eight coins agree with the exact numbers; and the simulator exits clean only when every estimate agrees.
+- The presentation is a plan made of plain numbers (`src/ui/holdPlan.ts`): which cells are empty before each respin, the respins left, whether they reset, and the count and worth of the board after each respin are read off the decided result and checked against it over 6,000 rounds. So are the coin faces (up to 9,999 written out, then thousands and millions, never more than five characters at the biggest bet) and the prize ladder.
+
 **Cascade engine.**
 - The cluster finder is compared against a deliberately naive, independent finder (label spreading instead of flood fill) on thousands of random grids of several sizes.
 - The refill's documented draw order is replayed by hand and must match exactly.
@@ -199,23 +240,26 @@ QA tools exist only in the development server (`npm run dev`) and in a QA build 
 
 **In the browser.** Before the free spins existed, sixty real spins on Clockwork and four hundred on Crucible (including two full furnace features) were checked, normal and turbo, with quick stops: the picture read back from the screen equals the engine's result every time, the wallet and on-screen numbers match, and there were no page errors. The free spins were checked the same way over 66 rounds of Clockwork (27 with free spins, 103 locked wilds and 6 retriggers among them, in turbo and at normal speed, plus a stop pressed mid-feature): after each round the reels showed exactly the window the engine landed, the cogs on screen were exactly the cells it locked, and the win readout, balance and wallet reconciled. The cascade animation was measured frame by frame over 120 spins (7,785 frames): the worst overlap between falling pieces is 0.1 pixel. The production build was also played from a `/spinwright/` subpath, the way GitHub Pages serves it. (That was before the Content Security Policy; the policy was then checked on the production build served from its own root, not from a subpath.) After the base-game rebalance the browser check was repeated on the new paytable, on the development server: 800 real spins (251 wins, the smallest paying 1.1 times the bet, 7 of them with free spins) and 6 bought features. After each one the reels showed the window the engine landed (the locked wilds, which are drawn as cogs, were compared with the engine's locked cells instead), and the win readout and balance matched the decided result, with no page errors. The lobby card and the rules page were read in the browser, and the lobby was checked at phone width for sideways scrolling, and the rules page's wording on where each symbol starts to pay was changed after reading it there.
 
+**Mint in the browser.** On the development server, with the QA hooks to start a round from chosen reel stops (six coins on three reels): 4 forced features, 300 ordinary spins (2 of which started the feature by chance) and 6 bought features were each compared with the result the engine decided. After every round the reels showed the engine's grid, the coins on the screen were exactly the feature's coins with the faces they should have (a named jackpot shows its name), the prizes lit on the ladder were exactly the jackpots that landed (and the Grand on a full board), the count, the total and the respin pips in the band matched, and the win readout, balance and wallet agreed; there were no page errors. A seed was found where the board fills: its run lit the Major and the Grand and ended on 15 of 15 coins and 25,280 credits at a bet of 40, as decided. The page was also checked at phone width (no sideways scrolling), and the lobby's four cards sit two by two. Last, the production build, served from its own root under the strict policy, was played with real clicks: a bought hold and win ran through, paid 920, left the balance and the win readout agreeing, and raised no policy violation.
+
 **The Forge.** The rules engine is played in tests with an explicit clock and a seeded generator: heat tiers and draining, the mainspring's winding, idle delay, run-down and capacity, the carry that makes part-credits pay out exactly, ingot timing, windfall and frenzy (including that the mainspring's strikes are multiplied too), purchases, refusals when short of credits, and saving and loading (including damaged saves). The upgrade cards are tested against the engine, so a card cannot describe a number the Forge does not use. The hammer's swing (one impact per strike, no jump when strikes come faster than it lifts), the sparks, the floating numbers and the colour of hot iron are plain functions with their own tests. The router and the lobby's catalog are tested too, including that the return figures the lobby quotes match the engines (each within sampling error of a fresh simulation). The Forge's pages were driven in a real browser: real clicks on the ingot, the anvil and the buttons (an ingot click does not also strike), purchases, the mainspring running down, ingots appearing, saved progress surviving a reload, the out-of-credits banner, and leaving a machine mid-spin; it was also checked at phone width.
 
-**Tests against deliberate bugs.** One hundred and forty injected bugs across both engines, the free spins, the Forge, the motion code and the sound code (a loop crossfade run backwards, a hum that does not fit its loop, a sound normalised past clipping, a bell on the wrong note, modulo bias, a non-wrapping reel window, wilds not extending runs, a wrong RTP divisor, scatter paid on the wrong bet, a wrong landing offset, heat that never rises, a reversed refill order, a cluster finder that ignores one neighbour, a feature that needs one scatter too many, heat that resets between feature spins, a missing win cap, a hammer that never reaches the iron, sparks thrown downward, floating numbers that never fade, a card quoting the next level's value, a wallet that lets credits go negative, a router that opens unknown machines, wilds that do not lock, a locked cell drawn in the wrong place, a retrigger that ignores the spin limit, a win cap that does not cap, free spins played on the base reels, a reel that never holds on for a scatter, a buy priced without the bet, a bought feature that ignores the cap, a buy that starts one scatter too generous, a paytable column that reads the wrong run, a heat example that adds instead of multiplies, a rules page that still talks of scatters in a game without any, a click guard that accepts script-made events or never doubles its rest, a wallet that spends from a stale balance, a policy that allows inline styles, a stray `innerHTML` or `fetch` added to the source, QA tools left in the real site, a Nine that pays on three again, a Jack that pays less than the bet, a longer run that pays less than a shorter one, a smallest-win calculation that forgets the scatter or the number of lines, a rules page or a lobby card that promises "every win pays more than your bet" when the table does not keep it, a bonus buy priced far under its feature's worth, and more) were each caught by the suite. (Three more changed nothing: two exposed dead code in the click guard and one a redundant line in the router, and all three were removed. Two showed gaps in tests, which were filled: one in a wallet test, and one in the lobby card's promise, which could not be reached through the catalog because only Clockwork uses it, so the function is now tested directly; testing it also showed that it would have promised "at least Infinity" for a game that pays nothing, which is fixed.)
+**Tests against deliberate bugs.** Two hundred and nineteen injected bugs across all three engines, the free spins, the Forge, the motion code and the sound code (a loop crossfade run backwards, a hum that does not fit its loop, a sound normalised past clipping, a bell on the wrong note, modulo bias, a non-wrapping reel window, wilds not extending runs, a wrong RTP divisor, scatter paid on the wrong bet, a wrong landing offset, heat that never rises, a reversed refill order, a cluster finder that ignores one neighbour, a feature that needs one scatter too many, heat that resets between feature spins, a missing win cap, a hammer that never reaches the iron, sparks thrown downward, floating numbers that never fade, a card quoting the next level's value, a wallet that lets credits go negative, a router that opens unknown machines, wilds that do not lock, a locked cell drawn in the wrong place, a retrigger that ignores the spin limit, a win cap that does not cap, free spins played on the base reels, a reel that never holds on for a scatter, a buy priced without the bet, a bought feature that ignores the cap, a buy that starts one scatter too generous, a paytable column that reads the wrong run, a heat example that adds instead of multiplies, a rules page that still talks of scatters in a game without any, a click guard that accepts script-made events or never doubles its rest, a wallet that spends from a stale balance, a policy that allows inline styles, a stray `innerHTML` or `fetch` added to the source, QA tools left in the real site, a Nine that pays on three again, a Jack that pays less than the bet, a longer run that pays less than a shorter one, a smallest-win calculation that forgets the scatter or the number of lines, a rules page or a lobby card that promises "every win pays more than your bet" when the table does not keep it, a bonus buy priced far under its feature's worth, a coin that does not set the respins back, a cell that fills a little too often, a full-board prize paid on any board, an exact chain that forgets the reset, a smallest-win calculation that takes the dearest coin, a plan that lists the empty cells in the wrong order, a lobby card that quotes the Grand in bets per line, and more) were each caught by the suite. (Four survived Mint's first round of them: three showed gaps in tests, which were filled (a smallest-win calculation only tried on games whose cheapest coin was also the only one, a lobby promise that could not be tried with a different game, so the lobby's facts became a function of the game, and a coin sound whose thunk no test required), and one changed nothing, a filter in the jackpot ranking that the prize ladder already did, which was removed.) (Three more changed nothing: two exposed dead code in the click guard and one a redundant line in the router, and all three were removed. Two showed gaps in tests, which were filled: one in a wallet test, and one in the lobby card's promise, which could not be reached through the catalog because only Clockwork uses it, so the function is now tested directly; testing it also showed that it would have promised "at least Infinity" for a game that pays nothing, which is fixed.)
 
 ## Layout
 
 ```
 src/engine/            the line engine: config + validation, RNG, spin, evaluation, exact RTP
 src/engine/cascade/    the cascade engine: grid, clusters, refill, heat, feature, exact trigger chance
+src/engine/hold/       the hold-and-win engine: coins and respins on top of a line game, and the exact solution of the feature
 src/games/             game definitions (data)
 src/sim/               Monte Carlo simulators (CLI)
 src/forge/            the Forge's rules (config, engine, card text, click guard): no drawing code
 src/app/               wallet, saved preferences, routes, the lobby catalog, the rules pages, the Machine interface (no drawing code)
 src/pages/             the pages: top bar, lobby, slot machine, Forge
-src/machines/          Clockwork and Crucible: a game plus its look and motion
-src/ui/                PixiJS reels, locked-wild layer, cascade view, forge scene, animator, HUD, rules dialog, QA panel
-src/ui/art/            the artwork: palette, metal helpers, both symbol sets, reel bed
+src/machines/          Clockwork, Crucible and Mint: a game plus its look and motion
+src/ui/                PixiJS reels, locked-wild layer, hold-and-win layer, cascade view, forge scene, animator, HUD, rules dialog, QA panel
+src/ui/art/            the artwork: palette, metal helpers, the three symbol sets, reel bed
 src/audio/             sound synthesis, the recipes for every sound, and the Web Audio player
 scripts/               sound export, the Content Security Policy, the build verifier
 test/                  Vitest suite
@@ -245,11 +289,14 @@ Done:
 9. ~~Security pass: strict policy, no rigging links, two-tab wallet fix, anti-auto-clicker checks~~
 10. ~~Clockwork's base game rebalanced so that every win pays more than the bet~~
 
+11. ~~A third machine: Mint, a hold and win, with an exact solution for its return~~
+
 Next, roughly in order:
 
-11. A third machine: **hold and win** (symbols that lock and respin, with fixed prizes and a jackpot), as its own engine with its own exact or simulated return, like the other two.
 12. Listen to the sound set and tune it. This needs a person's ears: the tests only cover what can be measured.
 13. Judge the Forge's pacing by feel (the test only guards against it being trivially fast or slow), and tune `src/forge/config.ts`.
 14. Deploy to GitHub Pages. The build is already made for it and was played from a subpath, but it is held back until the project is judged ready.
+
+Ideas, not started: a gamble on a win, autoplay, and a second kind of coin in Mint's hold and win (one that collects or upgrades its neighbours). The last would cost its exact solution: the chain over the number of coins would have to become a chain over where they sit, 32,768 boards instead of 16 counts.
 
 Not planned: real money, accounts, or anything server-side.

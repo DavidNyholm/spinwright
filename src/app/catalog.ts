@@ -1,6 +1,9 @@
+import { smallestHoldWinMultiple } from "../engine/hold/index.ts";
+import type { HoldGameConfig } from "../engine/hold/index.ts";
 import { smallestWinMultiple } from "../engine/index.ts";
 import { classic } from "../games/classic.ts";
 import { crucible } from "../games/crucible.ts";
+import { mint } from "../games/mint.ts";
 import { FORGE, machineRoute } from "./router.ts";
 import type { Route } from "./router.ts";
 
@@ -11,8 +14,9 @@ import type { Route } from "./router.ts";
  */
 export const CLOCKWORK_RTP_PERCENT = 96.0;
 export const CRUCIBLE_RTP_PERCENT = 95.5;
+export const MINT_RTP_PERCENT = 96.0;
 
-export type EmblemName = "gear" | "gem" | "anvil";
+export type EmblemName = "gear" | "gem" | "coin" | "anvil";
 
 export interface CatalogEntry {
   /** A machine's id, or "forge". */
@@ -30,6 +34,15 @@ export interface CatalogEntry {
 /** "Every win pays more than your bet", but only if the game's paytable really makes that so. */
 export const winFloorFact = (smallest: number): readonly string[] =>
   smallest > 1 && Number.isFinite(smallest) ? [`Every win pays more than your bet (at least ${Number(smallest.toFixed(2))}×)`] : [];
+
+/** What the lobby says about a hold-and-win game, from its own configuration. */
+export const holdGameFacts = (game: HoldGameConfig, returnPercent: number): readonly string[] => [
+  `${game.base.reels} reels, ${game.base.paylines.length} lines, hold and win`,
+  ...winFloorFact(smallestHoldWinMultiple(game)),
+  `${game.hold.fullBoard.name} for a full board: ${game.hold.fullBoard.value / game.base.paylines.length}× your bet`,
+  `Returns about ${percent(returnPercent)} (worked out exactly)`,
+  bonusBuyFact(game.hold.buyCost),
+];
 
 const bonusBuyFact = (buyCost: number | null): string => (buyCost === null ? "No bonus buy" : `Bonus buy: ${buyCost}× your bet`);
 const percent = (value: number): string => `${value.toFixed(2).replace(/\.?0+$/, "")}%`;
@@ -63,6 +76,16 @@ export const CATALOG: readonly CatalogEntry[] = [
       bonusBuyFact(crucible.feature?.buyCost ?? null),
     ],
     emblem: "gem",
+  },
+  {
+    id: mint.base.id,
+    route: machineRoute(mint.base.id),
+    kind: "slot",
+    number: 3,
+    name: "Mint",
+    pitch: `Coins drop onto the reels. Land ${mint.hold.minCoins} and they lock in place to start the hold and win, and every new coin sets the respins back to ${mint.hold.respins}. Fill the board for the ${mint.hold.fullBoard.name}.`,
+    facts: holdGameFacts(mint, MINT_RTP_PERCENT),
+    emblem: "coin",
   },
   {
     id: "forge",

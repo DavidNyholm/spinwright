@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { findCascadeConfigProblems } from "../src/engine/cascade/index.ts";
+import { findHoldProblems } from "../src/engine/hold/index.ts";
 import { ConfigError, defineGame, findConfigProblems, lookupPay } from "../src/engine/index.ts";
 import type { GameConfig } from "../src/engine/index.ts";
 import { games } from "../src/games/index.ts";
@@ -49,7 +50,8 @@ describe("defineGame", () => {
 
   it("accepts every shipped game", () => {
     for (const entry of Object.values(games)) {
-      const problems = entry.kind === "lines" ? findConfigProblems(entry.config) : findCascadeConfigProblems(entry.config);
+      const problems =
+        entry.kind === "lines" ? findConfigProblems(entry.config) : entry.kind === "cascade" ? findCascadeConfigProblems(entry.config) : findHoldProblems(entry.config);
       expect(problems).toEqual([]);
     }
   });

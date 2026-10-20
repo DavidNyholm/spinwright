@@ -34,6 +34,10 @@ export const SFX_NAMES = [
   // Clockwork's free spins
   "cogLock",
   "anticipation",
+  // Mint's hold and win
+  "coinLand",
+  "coinReveal",
+  "jackpot",
 ] as const;
 
 export type SfxName = (typeof SFX_NAMES)[number];

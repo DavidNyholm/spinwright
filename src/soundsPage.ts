@@ -12,6 +12,7 @@ const GROUPS: readonly { title: string; names: readonly SfxName[] }[] = [
   { title: "The page", names: ["tick", "betUp", "betDown", "coin"] },
   { title: "Reels (Clockwork)", names: ["spinStart", "reelLoop", "reelStop"] },
   { title: "Wins", names: ["winTiny", "winSmall", "winBig", "winHuge", "scatter"] },
+  { title: "Hold and win (Mint)", names: ["coinReveal", "coinLand", "jackpot"] },
   { title: "Cascades (Crucible)", names: ["whoosh", "gemLand", "gemBurst", "heatUp", "ember", "featureStart", "retrigger", "furnaceLoop"] },
 ];
 

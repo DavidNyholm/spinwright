@@ -159,7 +159,7 @@ describe("the lobby's drawings", () => {
     "points", "d", "cx", "cy", "r", "fill", "fill-opacity", "stroke", "stroke-width", "stroke-linejoin", "stroke-linecap",
   ]);
 
-  it.each(["gear", "gem", "anvil"] satisfies EmblemName[])("%s is only shapes, with only drawing attributes, and plain numbers", (name) => {
+  it.each(["gear", "gem", "coin", "anvil"] satisfies EmblemName[])("%s is only shapes, with only drawing attributes, and plain numbers", (name) => {
     const nodes = emblemNodes(name);
     expect(nodes.length).toBeGreaterThan(1);
     for (const node of nodes) {

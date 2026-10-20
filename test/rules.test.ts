@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { cascadeGameRules, forgeRules, lineGameRules } from "../src/app/rules.ts";
+import { cascadeGameRules, forgeRules, holdGameRules, lineGameRules } from "../src/app/rules.ts";
 import type { RulesDoc, RulesFacts } from "../src/app/rules.ts";
+import { holdValue, smallestHoldWinMultiple } from "../src/engine/hold/index.ts";
 import { lookupPay } from "../src/engine/index.ts";
 import { FORGE, upgradeCost, UPGRADE_IDS } from "../src/forge/config.ts";
 import { classic } from "../src/games/classic.ts";
 import { crucible } from "../src/games/crucible.ts";
+import { mint } from "../src/games/mint.ts";
 import { makeGame } from "./fixtures.ts";
 
 const facts: RulesFacts = { title: "Test", name: (symbol) => `name-${symbol}`, returnPercent: 96.1, returnBasis: "by test" };
@@ -250,5 +252,100 @@ describe("every page", () => {
     expect(unbuyable.sections.some((part) => part.heading.startsWith("Buying"))).toBe(false);
     const cascadeUnbuyable = cascadeGameRules({ ...crucible, feature: { ...crucible.feature!, buyCost: null } }, facts);
     expect(cascadeUnbuyable.sections.some((part) => part.heading.startsWith("Buying"))).toBe(false);
+  });
+});
+
+describe("Mint's page", () => {
+  const doc = holdGameRules(mint, facts);
+  const text = textOf(doc);
+  const lines = mint.base.paylines.length;
+  const times = (perLine: number): string => `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(perLine / lines)}×`;
+
+  it("has the line game's winning rules and paytable, then the coin, the feature, the coin values, the buy and the return, in that order", () => {
+    expect(doc.sections.map((s) => s.heading)).toEqual(["Winning", "Paytable", "name-Cs", "Hold and win", "Coin values", "Buying the bonus", "Return"]);
+    const lineDoc = lineGameRules(mint.base, facts, smallestHoldWinMultiple(mint));
+    expect(section(doc, "Paytable")).toEqual(section(lineDoc, "Paytable"));
+    expect(section(doc, "Winning")).toEqual(section(lineDoc, "Winning"));
+  });
+
+  it("says nothing about scatters, because the coin pays nothing by itself", () => {
+    expect(text).not.toMatch(/scatter/i);
+    expect(section(doc, "Winning").text!.join(" ")).not.toContain("scatter wins pay");
+    expect(section(doc, "name-C").text!.join(" ")).toContain("pays nothing by itself");
+  });
+
+  it("states the feature from the configuration: the coins that start it, the respins, the landing chance and the prize", () => {
+    const list = section(doc, "Hold and win").list!.join("\n");
+    expect(list).toContain(`${mint.hold.minCoins} or more name-cs on the opening spin lock in place`);
+    expect(list).toContain(`You get ${mint.hold.respins} respins`);
+    expect(list).toContain("a one in 15 chance of filling");
+    expect(list).toContain(`sets the respins back to ${mint.hold.respins}`);
+    expect(list).toContain(`Fill all 15 cells and the ${mint.hold.fullBoard.name} is paid on top, ${times(mint.hold.fullBoard.value)} your total bet`);
+    expect(doc.intro).toContain(`${mint.hold.minCoins} name-cs start the hold and win`);
+  });
+
+  it("changes when the configuration does", () => {
+    const changed = holdGameRules({ ...mint, hold: { ...mint.hold, respins: 5, landing: { numerator: 2, denominator: 9 }, fullBoard: { name: "Crown", value: 4_000 } } }, facts);
+    const list = section(changed, "Hold and win").list!.join("\n");
+    expect(list).toContain("You get 5 respins");
+    expect(list).toContain("a 2 in 9 chance");
+    expect(list).toContain("the Crown is paid on top, 200× your total bet");
+  });
+
+  it("lists every coin once, cheapest first, with its pay as a multiple of the total bet and its share, which add up to all of them", () => {
+    const table = section(doc, "Coin values").table!;
+    expect(table.head).toEqual(["Coin", "Pays", "Share of coins"]);
+    expect(table.rows).toHaveLength(mint.hold.values.length);
+    const sorted = [...mint.hold.values].sort((a, b) => a.value - b.value);
+    sorted.forEach((entry, index) => {
+      const row = table.rows[index]!;
+      expect(row[0]).toBe(entry.jackpot === undefined ? "name-C" : `${entry.jackpot} jackpot`);
+      expect(row[1]).toBe(times(entry.value));
+    });
+    const shares = table.rows.map((row) => Number.parseFloat(row[2]!));
+    expect(shares.reduce((sum, share) => sum + share, 0)).toBeCloseTo(100, 6);
+  });
+
+  it("quotes the price from the configuration and what a bought hold and win is worth, worked out exactly", () => {
+    const buy = section(doc, "Buying the bonus").text!.join(" ");
+    expect(buy).toContain(`for ${mint.hold.buyCost} times your total bet`);
+    expect(buy).toContain(`from exactly ${mint.hold.minCoins} name-cs`);
+    expect(buy).toContain(`about ${new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(Number(holdValue(mint, mint.hold.minCoins).toFixed(1)))} times your bet`);
+    const unsold = holdGameRules({ ...mint, hold: { ...mint.hold, buyCost: null } }, facts);
+    expect(unsold.sections.map((s) => s.heading)).not.toContain("Buying the bonus");
+  });
+
+  it("promises that no win pays less than the stake only while the cheapest hold and win does not", () => {
+    expect(section(doc, "Winning").text!.join(" ")).toContain("The smallest win in this game pays 1.1 times your total bet, so no win ever pays less than your stake.");
+    // Six coins of 1 per line over twenty lines pay 0.3 times the bet: a promise would be false, so the page makes none.
+    const cheap = holdGameRules({ ...mint, hold: { ...mint.hold, values: [{ value: 1, weight: 1 }] } }, facts);
+    expect(section(cheap, "Winning").text!.join(" ")).not.toContain("no win ever pays less");
+  });
+
+  it("quotes the return it was given and its basis", () => {
+    expect(section(doc, "Return").text!.join(" ")).toContain("about 96.1% of what is bet (by test)");
+  });
+});
+
+describe("a line game with a scatter that pays nothing", () => {
+  const coinGame = mint.base;
+  const doc = lineGameRules(coinGame, facts);
+
+  it("describes no scatter: no section, no scatter pays, no 'scatters pay anywhere'", () => {
+    expect(doc.sections.map((s) => s.heading)).not.toContain("name-C");
+    expect(textOf(doc)).not.toMatch(/scatter/i);
+  });
+
+  it("still describes a scatter that pays, with or without a feature", () => {
+    expect(textOf(lineGameRules(classic, facts))).toMatch(/scatter/i);
+    const paying = lineGameRules({ ...coinGame, scatter: { symbol: "C", pays: { 3: 2 } } }, facts);
+    expect(paying.sections.map((s) => s.heading)).toContain("name-C");
+    expect(textOf(paying)).toContain("scatter wins pay a multiple of the total bet");
+  });
+
+  it("takes the smallest win from its caller when the game has a bonus that can pay less than the lines do", () => {
+    expect(textOf(lineGameRules(classic, facts))).toContain("The smallest win in this game pays");
+    expect(textOf(lineGameRules(classic, facts, 0.5))).not.toContain("The smallest win in this game pays");
+    expect(textOf(lineGameRules(classic, facts, 3))).toContain("pays 3 times your total bet");
   });
 });

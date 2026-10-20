@@ -143,6 +143,9 @@ async function main(): Promise<void> {
         pieceStates: () => (machine()["pieceStates"] as () => unknown)(),
         /** Clockwork's free spins: the cells the screen shows a locked wild in. */
         lockedCells: () => (machine()["lockedCells"] as () => unknown)(),
+        /** Mint's hold and win: the coins the screen shows in their cells with what each says, and the prizes lit on the ladder. */
+        coinCells: () => (machine()["coinCells"] as () => unknown)(),
+        litPrizes: () => (machine()["litPrizes"] as () => unknown)(),
         finishCounters: () => (machine()["finishCounters"] as () => void)(),
         /** The Forge's engine, state and a hand-cranked clock. Only meaningful while the Forge is open. */
         get forge() {

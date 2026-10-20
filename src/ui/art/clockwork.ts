@@ -35,15 +35,15 @@ const PLATES: Readonly<Record<string, { text: string; metal: Metal }>> = {
 const RECESS = verticalGradient([0, 0x0f0c09], [1, 0x1d1712]);
 
 /** The cell behind a symbol: barely there, so the symbol sits straight on the dark reel window. */
-function tile(width: number, height: number): Container {
+export function tile(width: number, height: number): Container {
   return group(
     new Graphics().roundRect(3, 3, width - 6, height - 6, 14).fill(verticalGradient([0, 0x1a1510], [1, 0x0f0c09])),
     new Graphics().roundRect(3, 3, width - 6, height - 6, 14).stroke({ width: 1, color: PALETTE.brassLight, alpha: 0.07 }),
   );
 }
 
-/** A riveted metal plate with the letter engraved on a dark recess. */
-function plate(width: number, height: number, text: string, metal: Metal): Container {
+/** A riveted metal plate with a dark recess in the middle, ready for something to be engraved on it. */
+export function plateFrame(width: number, height: number, metal: Metal): Container {
   const x = 11;
   const y = 11;
   const plateWidth = width - 22;
@@ -64,6 +64,12 @@ function plate(width: number, height: number, text: string, metal: Metal): Conta
   ] as const) {
     container.addChild(rivet(cx, cy, 3.6, metal));
   }
+  return container;
+}
+
+/** A riveted metal plate with the letter engraved on a dark recess. */
+function plate(width: number, height: number, text: string, metal: Metal): Container {
+  const container = plateFrame(width, height, metal);
   const letter = engravedText(text, text.length > 1 ? 80 : 98, metal.light, metal.edge, 5);
   letter.position.set(width / 2, height / 2 + 3);
   container.addChild(letter);

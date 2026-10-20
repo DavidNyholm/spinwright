@@ -1,6 +1,7 @@
 import { parseArgs } from "node:util";
 import { games } from "../games/index.ts";
 import { runCascadeSim } from "./cascadeSim.ts";
+import { runHoldSim } from "./holdSim.ts";
 import { runLineSim } from "./lineSim.ts";
 
 const DEFAULTS = { game: "classic", spins: "1000000", seed: "spinwright-sim", lineBet: "1", sessions: "200000" } as const;
@@ -52,6 +53,15 @@ if (entry.kind === "cascade") {
   console.log(report);
   if (!agrees) {
     console.error("\nThe end-to-end feature return and the by-parts estimate disagree: the feature logic and its exact trigger chance are inconsistent.");
+    process.exit(1);
+  }
+  process.exit(0);
+}
+if (entry.kind === "hold") {
+  const { report, agrees } = runHoldSim(entry.config, { rounds: spins, sessions: parsePositiveInt("sessions", values.sessions, 2), seed: values.seed, lineBet });
+  console.log(report);
+  if (!agrees) {
+    console.error("\nThe simulation and the exact calculation disagree: the feature logic and its exact solution are inconsistent.");
     process.exit(1);
   }
   process.exit(0);

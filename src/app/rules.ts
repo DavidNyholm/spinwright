@@ -1,6 +1,8 @@
 import { lookupPay } from "../engine/config.ts";
 import type { CascadeConfig } from "../engine/cascade/index.ts";
 import { smallestWinMultiple } from "../engine/analytic.ts";
+import { holdValue, smallestHoldWinMultiple } from "../engine/hold/analytic.ts";
+import type { HoldGameConfig } from "../engine/hold/index.ts";
 import { smallestTrigger, spinsAwarded } from "../engine/feature.ts";
 import type { GameConfig, PayTable, SymbolId } from "../engine/index.ts";
 import { FORGE, UPGRADE_IDS, upgradeCost } from "../forge/config.ts";
@@ -72,14 +74,19 @@ function reelsWith(symbol: SymbolId, ...strips: readonly (readonly (readonly Sym
 
 // --- a line game ----------------------------------------------------------------------------------------
 
-export function lineGameRules(config: GameConfig, facts: RulesFacts): RulesDoc {
+/**
+ * `smallestWin` is the least any win in the game pays, as a multiple of the total bet; it defaults to the
+ * smallest line or scatter pay, and a game with a bonus that can pay less (hold and win) passes its own.
+ */
+export function lineGameRules(config: GameConfig, facts: RulesFacts, smallestWin = smallestWinMultiple(config)): RulesDoc {
   const { name } = facts;
   const lines = config.paylines.length;
   const lineSymbols = Object.entries(config.pays).filter(([, table]) => keys(table).length > 0);
   const smallestRun = Math.min(...lineSymbols.flatMap(([, table]) => keys(table)));
   // Symbols may start paying at different run lengths (the lowest may need four), and the page says so rather than claiming one rule.
   const startsAt = new Set(lineSymbols.map(([, table]) => keys(table)[0]));
-  const smallestWin = smallestWinMultiple(config);
+  // A scatter with no pay of its own (the coin of a hold-and-win game) is not a scatter win to describe.
+  const payingScatter = config.scatter !== null && keys(config.scatter.pays).length > 0;
   const runs = Array.from({ length: config.reels - smallestRun + 1 }, (_, i) => smallestRun + i);
   const feature = config.feature;
 
@@ -92,7 +99,7 @@ export function lineGameRules(config: GameConfig, facts: RulesFacts): RulesDoc {
             ? `A win needs ${smallestRun} or more matching symbols in a row along a payline, starting on the first reel and running unbroken to the right.`
             : `Matching symbols in a row along a payline win from ${smallestRun}, and the paytable shows where each symbol starts to pay. A row must start on the first reel and run unbroken to the right.`
         }`,
-        `Your total bet is the bet per line times ${lines}. A line win pays its multiple of the bet per line${config.scatter === null ? "" : "; scatter wins pay a multiple of the total bet"}. Every line that wins is paid.`,
+        `Your total bet is the bet per line times ${lines}. A line win pays its multiple of the bet per line${payingScatter ? "; scatter wins pay a multiple of the total bet" : ""}. Every line that wins is paid.`,
         ...(smallestWin > 1 ? [`The smallest win in this game pays ${n(Number(smallestWin.toFixed(2)))} times your total bet, so no win ever pays less than your stake.`] : []),
       ],
     },
@@ -120,7 +127,7 @@ export function lineGameRules(config: GameConfig, facts: RulesFacts): RulesDoc {
     });
   }
 
-  if (config.scatter !== null) {
+  if (config.scatter !== null && (payingScatter || feature !== null)) {
     const scatter = config.scatter;
     const counts = [...new Set([...keys(scatter.pays), ...(feature === null ? [] : keys(feature.spins))])].sort((a, b) => a - b);
     sections.push({
@@ -180,14 +187,86 @@ export function lineGameRules(config: GameConfig, facts: RulesFacts): RulesDoc {
       feature !== null
         ? `Line up matching symbols from the left. ${smallestTrigger(config)} scatters start free spins in which wilds lock in place.`
         : `Line up matching symbols from the left.${
-            config.wild !== null && config.scatter !== null
+            config.wild !== null && payingScatter
               ? " Wilds fill in and scatters pay anywhere."
               : config.wild !== null
                 ? " Wilds fill in."
-                : config.scatter !== null
+                : payingScatter
                   ? " Scatters pay anywhere."
                   : ""
           }`,
+    sections,
+  };
+}
+
+// --- a hold-and-win game ---------------------------------------------------------------------------------------
+
+/** "one in 15", or "2 in 15" when it is not one in. */
+const oneIn = (numerator: number, denominator: number): string => (numerator === 1 ? `one in ${n(denominator)}` : `${n(numerator)} in ${n(denominator)}`);
+
+export function holdGameRules(game: HoldGameConfig, facts: RulesFacts): RulesDoc {
+  const { base, hold } = game;
+  const { name } = facts;
+  const lines = base.paylines.length;
+  const cells = base.reels * base.rows;
+  const coin = name(hold.coin).toLowerCase();
+  const prize = hold.fullBoard;
+  const totalWeight = hold.values.reduce((sum, entry) => sum + entry.weight, 0);
+  const multiple = (perLine: number): string => times(perLine / lines);
+
+  // The line game's own pages, minus its return (this page has its own) and with the floor that covers the bonus too.
+  const lineSections = lineGameRules(base, facts, smallestHoldWinMultiple(game)).sections.filter((section) => section.heading !== "Return");
+
+  const values = [...hold.values].sort((a, b) => a.value - b.value);
+  const sections: RulesSection[] = [
+    ...lineSections,
+    {
+      heading: `${name(hold.coin)}s`,
+      text: [
+        `The ${coin} pays nothing by itself and never forms a line, though it breaks one. ${hold.minCoins} or more of them anywhere on the opening spin start the hold and win.`,
+      ],
+    },
+    {
+      heading: "Hold and win",
+      list: [
+        `${hold.minCoins} or more ${coin}s on the opening spin lock in place and turn over to show what each is worth. The rest of the board is empty.`,
+        `You get ${hold.respins} respins. On each one, every empty cell has a ${oneIn(hold.landing.numerator, hold.landing.denominator)} chance of filling with a ${coin}, each cell on its own.`,
+        `A respin that fills a cell sets the respins back to ${hold.respins}. A respin that fills nothing uses one up. When none are left, the feature ends and pays every ${coin} on the board.`,
+        `Fill all ${cells} cells and the ${prize.name} is paid on top, ${multiple(prize.value)} your total bet, and the feature ends at once.`,
+      ],
+    },
+    {
+      heading: "Coin values",
+      table: {
+        head: ["Coin", "Pays", "Share of coins"],
+        rows: values.map((entry) => [
+          entry.jackpot === undefined ? name(hold.coin) : `${entry.jackpot} jackpot`,
+          multiple(entry.value),
+          `${n(Number(((entry.weight / totalWeight) * 100).toFixed(1)))}%`,
+        ]),
+        note: `Multiples of your total bet. Every ${coin} is drawn from this table, on the opening spin and on every respin.`,
+      },
+    },
+  ];
+
+  if (hold.buyCost !== null) {
+    sections.push({
+      heading: "Buying the bonus",
+      text: [
+        `The buy bar skips the wait: for ${n(hold.buyCost)} times your total bet the hold and win starts at once, with no opening spin, from exactly ${hold.minCoins} ${coin}s in cells chosen at random.`,
+        `Worked out exactly, a bought hold and win is worth about ${n(Number(holdValue(game, hold.minCoins).toFixed(1)))} times your bet on average, a little under its price, so a buy returns a little under what a spin does. Most buys pay less than they cost and a few pay far more.`,
+      ],
+    });
+  }
+
+  sections.push({
+    heading: "Return",
+    text: [`Over time the machine returns about ${n(facts.returnPercent)}% of what is bet (${facts.returnBasis}). Any single session can be far above or below that.`, FAIRNESS],
+  });
+
+  return {
+    title: facts.title,
+    intro: `Line up matching symbols from the left. ${hold.minCoins} ${coin}s start the hold and win: they lock in place, and every new ${coin} sets the respins back to ${hold.respins}.`,
     sections,
   };
 }

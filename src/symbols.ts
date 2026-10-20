@@ -2,10 +2,11 @@ import "@fontsource/big-shoulders-display/latin-800";
 import { Application, Sprite } from "pixi.js";
 import { classic } from "./games/classic.ts";
 import { crucible } from "./games/crucible.ts";
+import { mint } from "./games/mint.ts";
 import { LAYOUT } from "./ui/layout.ts";
-import { CLOCKWORK, createSymbolTextures, FOUNDRY } from "./ui/theme.ts";
+import { CLOCKWORK, createSymbolTextures, FOUNDRY, MINT } from "./ui/theme.ts";
 
-/** Development page: draws every symbol of both themes in a grid, for reviewing the artwork. */
+/** Development page: draws every symbol of the three themes in a grid, for reviewing the artwork. */
 const COLUMNS = 6;
 const GAP = 16;
 const CRUCIBLE_CELL = 108;
@@ -14,9 +15,11 @@ async function main(): Promise<void> {
   await document.fonts.load('800 48px "Big Shoulders Display"');
   const clockwork = [...new Set(classic.strips.flat())];
   const foundry = [...new Set(crucible.weights.flatMap((column) => Object.keys(column)))];
+  const minted = [...new Set(mint.base.strips.flat())];
   const { cellWidth, cellHeight } = LAYOUT;
   const clockworkRows = Math.ceil(clockwork.length / COLUMNS);
-  const foundryTop = GAP + clockworkRows * (cellHeight + GAP) + GAP;
+  const mintTop = GAP + clockworkRows * (cellHeight + GAP) + GAP;
+  const foundryTop = mintTop + Math.ceil(minted.length / COLUMNS) * (cellHeight + GAP) + GAP;
 
   const app = new Application();
   await app.init({
@@ -36,6 +39,7 @@ async function main(): Promise<void> {
       app.stage.addChild(sprite);
     });
   place(createSymbolTextures(app.renderer, CLOCKWORK, clockwork, cellWidth, cellHeight), clockwork, GAP, cellWidth, cellHeight);
+  place(createSymbolTextures(app.renderer, MINT, minted, cellWidth, cellHeight), minted, mintTop, cellWidth, cellHeight);
   place(createSymbolTextures(app.renderer, FOUNDRY, foundry, CRUCIBLE_CELL, CRUCIBLE_CELL), foundry, foundryTop, CRUCIBLE_CELL, CRUCIBLE_CELL);
 }
 

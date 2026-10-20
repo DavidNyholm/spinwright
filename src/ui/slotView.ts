@@ -124,6 +124,11 @@ export class SlotView {
     return this.#resolveSpin !== null;
   }
 
+  /** The clock a machine's own timed animations run on, so they speed up with turbo and stop exactly as the reels' do. */
+  get animator(): Animator {
+    return this.#animator;
+  }
+
   /** The symbols currently drawn in the window, read back from the reels (for QA), and whether all sit on their cells. */
   shownGrid(): { grid: SymbolId[][]; aligned: boolean } {
     const shown = this.#reels.map((reel) => reel.shown());

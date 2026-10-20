@@ -1,4 +1,5 @@
 import { defineGame } from "../engine/index.ts";
+import { TWENTY_LINES } from "./paylines.ts";
 
 /**
  * Classic 5x3, 20 paylines, wild and scatter, and a free-spins feature. A theme-free game: the
@@ -37,28 +38,7 @@ export const classic = defineGame({
     strip("L1 H2 L5 L3 L6 L2 H1 S L2 L4 H2 W L3 L1 W H1 L5 L2 L4 L5 L1 L3 L6 L4 L5 L3 L4 L1 H3 L2 L3 H1 L1 L2 L6 L4"),
     strip("L3 L1 L2 L4 L3 H2 L2 L1 H2 L5 H3 L6 L4 H1 L3 L1 L5 H1 L4 L2 L5 L3 L6 L1 L4 L6 L2 S L4 L6 L5 L2 L1 L5 L3 H1"),
   ],
-  paylines: [
-    [1, 1, 1, 1, 1],
-    [0, 0, 0, 0, 0],
-    [2, 2, 2, 2, 2],
-    [0, 1, 2, 1, 0],
-    [2, 1, 0, 1, 2],
-    [0, 0, 1, 2, 2],
-    [2, 2, 1, 0, 0],
-    [1, 0, 0, 0, 1],
-    [1, 2, 2, 2, 1],
-    [0, 1, 0, 1, 0],
-    [2, 1, 2, 1, 2],
-    [1, 0, 1, 0, 1],
-    [1, 2, 1, 2, 1],
-    [0, 1, 1, 1, 0],
-    [2, 1, 1, 1, 2],
-    [1, 1, 0, 1, 1],
-    [1, 1, 2, 1, 1],
-    [0, 0, 2, 0, 0],
-    [2, 2, 0, 2, 2],
-    [0, 2, 2, 2, 0],
-  ],
+  paylines: TWENTY_LINES,
   pays: {
     L1: { 4: 25, 5: 110 },
     L2: { 4: 25, 5: 110 },

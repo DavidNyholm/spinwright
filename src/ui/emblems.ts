@@ -37,6 +37,25 @@ export function gearPoints(teeth: number, innerRadius: number, outerRadius: numb
   return points(flat);
 }
 
+/** A five-pointed star centred at (`cx`, `cy`), as the path of an SVG shape. */
+export function starPath(cx: number, cy: number, outer: number, inner: number): string {
+  const corners = Array.from({ length: 10 }, (_, i) => {
+    const radius = i % 2 === 0 ? outer : inner;
+    const angle = -Math.PI / 2 + (i * Math.PI) / 5;
+    return `${Math.round((cx + Math.cos(angle) * radius) * 10) / 10} ${Math.round((cy + Math.sin(angle) * radius) * 10) / 10}`;
+  });
+  return `M${corners.join("L")}Z`;
+}
+
+/** Short strokes round a circle between two radii, as the path of an SVG shape: the milled edge of a coin. */
+export function radialTicks(cx: number, cy: number, from: number, to: number, count: number): string {
+  const round = (value: number): number => Math.round(value * 10) / 10;
+  return Array.from({ length: count }, (_, i) => {
+    const angle = (i * 2 * Math.PI) / count;
+    return `M${round(cx + Math.cos(angle) * from)} ${round(cy + Math.sin(angle) * from)}L${round(cx + Math.cos(angle) * to)} ${round(cy + Math.sin(angle) * to)}`;
+  }).join("");
+}
+
 /** The anvil's outline, in the same units the forge scene draws it in, so the card and the scene show the same anvil. */
 const ANVIL_OUTLINE = [
   288, 240, 318, 231, 345, 226, 362, 224, 556, 224, 568, 227, 570, 246, 526, 250, 504, 258, 504, 296, 536, 301, 536, 336, 364, 336, 364, 301, 396, 296, 396,
@@ -78,6 +97,11 @@ const DRAWINGS: Readonly<Record<EmblemName, readonly SvgNode[]>> = {
     outline("30 40 45 18 75 18 90 40 60 104"),
     lines("M30 40H90M45 18L50 40M75 18L70 40M60 18L50 40M60 18L70 40M50 40L60 104M70 40L60 104", "2.2"),
     solid("path", { d: "M96 14l3 7 7 3-7 3-3 7-3-7-7-3 7-3z" }),
+  ],
+  coin: [
+    { tag: "circle", attrs: { cx: "60", cy: "60", r: "46", fill: "currentColor", "fill-opacity": "0.16", stroke: "currentColor", "stroke-width": "3" } },
+    lines(radialTicks(60, 60, 36, 42, 24), "2.5"),
+    solid("path", { d: starPath(60, 60, 22, 9) }),
   ],
   anvil: [outline(points(fitPoints(ANVIL_OUTLINE, 104, 52, 76))), lines("M52 40L46 24M64 36L64 18M76 40L82 24M88 46L100 36M40 48L28 40", "3")],
 };

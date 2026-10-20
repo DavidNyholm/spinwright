@@ -319,6 +319,42 @@ const RECIPES: Readonly<Record<SfxName, () => Samples>> = {
     return finish(out, 0.5, 0.06);
   },
 
+  // --- Mint's hold and win -----------------------------------------------------------------
+
+  coinLand: () => {
+    // A coin dropped on a brass plate: a short thunk, a click, and a bright ring of partials that are not whole multiples (which is what makes it metal).
+    const out = silence(0.45);
+    mixInto(out, tone({ seconds: 0.09, from: 240, to: 110, decay: 0.022, attack: 0.0006 }), 0, 0.85);
+    mixInto(out, noiseBurst({ seconds: 0.015, seed: "coinLand", decay: 0.0015, highpass: 3500 }), 0, 0.7);
+    for (const [ratio, level, decay] of [
+      [1, 1, 0.11],
+      [2.76, 0.55, 0.07],
+      [5.4, 0.3, 0.045],
+    ] as const) {
+      mixInto(out, tone({ seconds: 0.4, from: 1568 * ratio, decay, attack: 0.0006 }), 0.004, level * 0.55);
+    }
+    softClip(out, 1.3);
+    return finish(out, 0.6, 0.05);
+  },
+
+  coinReveal: () => {
+    // A coin turning over: a quick rush of air as it flips, then a small bell as the value shows.
+    const out = silence(0.45);
+    mixInto(out, noiseSweep({ seconds: 0.1, seed: "coinReveal", fromHz: 1200, toHz: 5200, q: 1.8, envelope: (p) => Math.sin(Math.PI * p) }), 0, 0.6);
+    mixInto(out, bell(midi(96), 0.35, 0.12, 0.8), 0.08, 0.6);
+    return finish(out, 0.4, 0.05);
+  },
+
+  jackpot: () => {
+    // The biggest sound after a huge win: a rising shimmer, a run of bells climbing two octaves, and a held chord of bells over a low thump.
+    const out = silence(2.8);
+    mixInto(out, noiseSweep({ seconds: 0.9, seed: "jackpot", fromHz: 600, toHz: 5200, q: 1.6, envelope: (p) => p ** 1.4 }), 0, 0.5);
+    mixInto(out, arpeggio([79, 83, 86, 91, 95, 98, 103, 107], 0.085, 1.4, 0.4), 0.15);
+    for (const note of [67, 71, 74, 79]) mixInto(out, bell(midi(note), 2.0, 0.9, 0.6), 0.75, 0.45);
+    mixInto(out, tone({ seconds: 1.2, from: 62, decay: 0.5 }), 0.7, 0.9);
+    return finish(out, 0.9, 0.2);
+  },
+
   frenzy: () => {
     const out = silence(1.2);
     mixInto(out, noiseSweep({ seconds: 0.9, seed: "frenzy", fromHz: 400, toHz: 4200, q: 1.4, envelope: (p) => p ** 1.5 }), 0, 0.7);

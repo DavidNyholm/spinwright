@@ -142,6 +142,33 @@ describe("what the sounds are made of", () => {
     expect(energyAt(lock, 1568, 0.1, 0.25)).toBeGreaterThan(5 * energyAt(lock, 600, 0.1, 0.25));
   });
 
+  it("drops a coin as metal on metal: a thunk, then a ring high up that is not a whole multiple of its pitch", () => {
+    const land = get("coinLand");
+    expect(land.length / SAMPLE_RATE).toBeLessThan(0.6);
+    // The thunk is low and only at the start: a note near 200 Hz in the first 80 ms, and none of it later.
+    expect(energyAt(land, 200, 0, 0.08)).toBeGreaterThan(1000 * energyAt(land, 200, 0.15, 0.2));
+    expect(energyAt(land, 1568, 0.01, 0.2)).toBeGreaterThan(20 * energyAt(land, 500, 0.01, 0.2));
+    // The second partial sits at 2.76 times the first (4,328 Hz), and a whole-number partial (3,136 Hz) is not what rings.
+    expect(energyAt(land, 1568 * 2.76, 0.01, 0.2)).toBeGreaterThan(3 * energyAt(land, 3136, 0.01, 0.2));
+  });
+
+  it("turns a coin over with a rush of air and then a small bell, and is quieter than the landing", () => {
+    const reveal = get("coinReveal");
+    expect(reveal.length / SAMPLE_RATE).toBeLessThan(0.6);
+    expect(energyAt(reveal, midi(96), 0.1, 0.25)).toBeGreaterThan(20 * energyAt(reveal, 300, 0.1, 0.25));
+    expect(peakOf(reveal)).toBeLessThan(peakOf(get("coinLand")));
+  });
+
+  it("makes the jackpot the biggest sound after a huge win: longer and louder than a big win, with a held chord under it", () => {
+    const jackpot = get("jackpot");
+    expect(jackpot.length).toBeGreaterThan(get("winBig").length);
+    expect(peakOf(jackpot)).toBeGreaterThanOrEqual(peakOf(get("winBig")));
+    expect(jackpot.length).toBeLessThanOrEqual(get("winHuge").length);
+    // Its chord is still ringing in the last second: G4 (392 Hz) is there and 700 Hz is not.
+    const seconds = jackpot.length / SAMPLE_RATE;
+    expect(energyAt(jackpot, midi(67), seconds - 1.2, 0.8)).toBeGreaterThan(10 * energyAt(jackpot, 700, seconds - 1.2, 0.8));
+  });
+
   it("builds tension for exactly as long as the reels hold on, and gets brighter as it goes", () => {
     const wait = get("anticipation");
     const seconds = wait.length / SAMPLE_RATE;

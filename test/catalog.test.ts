@@ -1,15 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { CATALOG, CLOCKWORK_RTP_PERCENT, SLOT_ENTRIES, winFloorFact } from "../src/app/catalog.ts";
+import { CATALOG, CLOCKWORK_RTP_PERCENT, holdGameFacts, MINT_RTP_PERCENT, SLOT_ENTRIES, winFloorFact } from "../src/app/catalog.ts";
 import { parseRoute, routeToHash } from "../src/app/router.ts";
 import { classic } from "../src/games/classic.ts";
 import { crucible } from "../src/games/crucible.ts";
+import { mint } from "../src/games/mint.ts";
+import { exactHoldReturn, smallestHoldWinMultiple } from "../src/engine/hold/index.ts";
 import { estimateReturn } from "../src/sim/lineSim.ts";
 
 describe("catalog", () => {
   const machineIds = SLOT_ENTRIES.map((entry) => entry.id);
 
   it("lists each machine once, with the id of the game it plays", () => {
-    expect(machineIds).toEqual([classic.id, crucible.id]);
+    expect(machineIds).toEqual([classic.id, crucible.id, mint.base.id]);
     expect(new Set(CATALOG.map((entry) => entry.id)).size).toBe(CATALOG.length);
   });
 
@@ -18,7 +20,7 @@ describe("catalog", () => {
   });
 
   it("numbers the machines in order and nothing else", () => {
-    expect(SLOT_ENTRIES.map((entry) => entry.number)).toEqual([1, 2]);
+    expect(SLOT_ENTRIES.map((entry) => entry.number)).toEqual([1, 2, 3]);
     expect(CATALOG.filter((entry) => entry.kind !== "slot").every((entry) => entry.number === null)).toBe(true);
   });
 
@@ -28,6 +30,32 @@ describe("catalog", () => {
     expect(Math.abs(estimate.total * 100 - CLOCKWORK_RTP_PERCENT)).toBeLessThan(0.7);
     const clockwork = CATALOG.find((entry) => entry.id === classic.id)!;
     expect(clockwork.facts.join(" ")).toContain(`${CLOCKWORK_RTP_PERCENT}%`);
+  });
+
+  it("shows Mint's return exactly: the whole return is a calculation, so the lobby's figure is the engine's, to a hundredth", () => {
+    expect(Math.abs(exactHoldReturn(mint).total * 100 - MINT_RTP_PERCENT)).toBeLessThan(0.05);
+    expect(CATALOG.find((entry) => entry.id === mint.base.id)!.facts.join(" ")).toContain(`${MINT_RTP_PERCENT}%`);
+  });
+
+  it("describes Mint from its own configuration: the grid, the prize and the buy price", () => {
+    const entry = CATALOG.find((candidate) => candidate.id === mint.base.id)!;
+    const facts = entry.facts.join(" | ");
+    expect(facts).toContain(`${mint.base.reels} reels, ${mint.base.paylines.length} lines, hold and win`);
+    expect(facts).toContain(`${mint.hold.fullBoard.name} for a full board: ${mint.hold.fullBoard.value / mint.base.paylines.length}× your bet`);
+    expect(facts).toContain(`Bonus buy: ${mint.hold.buyCost}× your bet`);
+    expect(entry.pitch).toContain(`Land ${mint.hold.minCoins}`);
+    expect(entry.emblem).toBe("coin");
+  });
+
+  it("promises on Mint that every win pays more than the bet, because its lines and its cheapest hold and win both do", () => {
+    const facts = CATALOG.find((entry) => entry.id === mint.base.id)!.facts.join(" | ");
+    expect(smallestHoldWinMultiple(mint)).toBeGreaterThan(1);
+    expect(facts).toContain("Every win pays more than your bet (at least 1.1×)");
+    // A cheaper coin would make the cheapest hold and win pay less than the bet, and the promise would have to go.
+    const cheap = { ...mint, hold: { ...mint.hold, values: [{ value: 1, weight: 1 }] } };
+    expect(holdGameFacts(cheap, MINT_RTP_PERCENT).join(" | ")).not.toContain("Every win pays more");
+    // And the same table with coins that keep the cheapest hold and win above the bet keeps it.
+    expect(holdGameFacts({ ...mint, hold: { ...mint.hold, values: [{ value: 10, weight: 1 }] } }, MINT_RTP_PERCENT).join(" | ")).toContain("Every win pays more than your bet (at least 1.1×)");
   });
 
   it("promises that every Clockwork win pays more than the bet only because its paytable does", () => {

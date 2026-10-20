@@ -1,15 +1,15 @@
-import { Container, Graphics, Sprite, Text } from "pixi.js";
+import { Container, Graphics, Sprite } from "pixi.js";
 import type { Texture } from "pixi.js";
 import type { Position } from "../engine/index.ts";
 import { Animator, easeOutCubic } from "./animator.ts";
 import { gearOutline, METALS, metalGradient } from "./art/metal.ts";
-import { FONT_DISPLAY, PALETTE } from "./art/palette.ts";
+import { PALETTE } from "./art/palette.ts";
+import { Banner } from "./banner.ts";
 import { LAYOUT, reelX, rowY } from "./layout.ts";
 
 const LOCK_IN_MS = 280;
 /** A cog starts this much larger than its cell and settles into it. */
 const LOCK_IN_SCALE = 1.4;
-const BANNER_FADE_MS = 240;
 const FRAME_FADE_MS = 320;
 const DIM_ALPHA = 0.3;
 const GLOW_PERIOD_MS = 420;
@@ -44,9 +44,7 @@ export class FeatureLayer {
   readonly #options: FeatureLayerOptions;
   readonly #placed = new Map<string, Cog>();
   readonly #frame = new Graphics();
-  readonly #bannerPanel = new Container();
-  readonly #bannerTitle: Text;
-  readonly #bannerSubtitle: Text;
+  readonly #banner: Banner;
   /** How far the glow has faded in, 0 to 1, and how bright its breathing has it just now, 0.75 to 1. */
   #level = 0;
   #breath = 1;
@@ -66,26 +64,8 @@ export class FeatureLayer {
     this.#frame.visible = false;
     this.cogs.addChild(this.#frame);
 
-    const panel = new Graphics()
-      .roundRect(-width * 0.34, -78, width * 0.68, 156, 18)
-      .fill({ color: 0x0a0806, alpha: 0.92 })
-      .stroke({ width: 3, color: PALETTE.brass });
-    const text = (size: number, fill: number, spacing: number): Text => {
-      const label = new Text({
-        text: "",
-        style: { fontFamily: FONT_DISPLAY, fontSize: size, fontWeight: "800", fill, letterSpacing: spacing, stroke: { color: 0x1a0c07, width: 6, join: "round" } },
-      });
-      label.anchor.set(0.5);
-      return label;
-    };
-    this.#bannerTitle = text(68, PALETTE.amberHot, 8);
-    this.#bannerTitle.position.set(0, -20);
-    this.#bannerSubtitle = text(28, PALETTE.text, 4);
-    this.#bannerSubtitle.position.set(0, 42);
-    this.#bannerPanel.addChild(panel, this.#bannerTitle, this.#bannerSubtitle);
-    this.#bannerPanel.position.set(width / 2, height / 2);
-    this.#bannerPanel.visible = false;
-    this.banners.addChild(this.#bannerPanel);
+    this.#banner = new Banner(animator, options);
+    this.banners.addChild(this.#banner.container);
   }
 
   /** The cells that hold a locked wild, for QA. */
@@ -115,7 +95,7 @@ export class FeatureLayer {
     this.#level = 0;
     this.#frame.visible = false;
     this.#frame.alpha = 0;
-    this.#bannerPanel.visible = false;
+    this.#banner.hide();
   }
 
   /** Dims the locked wilds that are not in `lit`, so a win outline stands out; null brings them all back. */
@@ -136,23 +116,8 @@ export class FeatureLayer {
   }
 
   /** Shows a banner, holds it for `holdMs`, and fades it out. */
-  async banner(title: string, subtitle: string | null, holdMs: number): Promise<void> {
-    this.#bannerTitle.text = title;
-    this.#bannerSubtitle.text = subtitle ?? "";
-    this.#bannerSubtitle.visible = subtitle !== null;
-    this.#bannerPanel.visible = true;
-    const pop = this.#options.reduceMotion ? 1 : 0.85;
-    await this.#animator.tween(
-      BANNER_FADE_MS,
-      (progress) => {
-        this.#bannerPanel.alpha = progress;
-        this.#bannerPanel.scale.set(pop + (1 - pop) * progress);
-      },
-      easeOutCubic,
-    );
-    await this.#animator.wait(holdMs);
-    await this.#animator.tween(BANNER_FADE_MS, (progress) => (this.#bannerPanel.alpha = 1 - progress));
-    this.#bannerPanel.visible = false;
+  banner(title: string, subtitle: string | null, holdMs: number): Promise<void> {
+    return this.#banner.show(title, subtitle, holdMs);
   }
 
   /** Called every frame, to make the glow breathe while the feature is on. */
