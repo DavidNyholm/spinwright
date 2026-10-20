@@ -3,8 +3,8 @@ export const LAYOUT = {
   cellWidth: 160,
   cellHeight: 140,
   reelGap: 8,
-  paddingX: 34,
-  paddingY: 30,
+  paddingX: 30,
+  paddingY: 26,
 } as const;
 
 export function stageSize(reels: number, rows: number): { width: number; height: number } {

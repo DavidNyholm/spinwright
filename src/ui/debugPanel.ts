@@ -44,7 +44,7 @@ export function createDebugPanel(game: GameConfig, seed: string): DebugPanel {
   output.textContent = "No spin yet";
 
   panel.append(heading, seedLine, forceLabel, row, output);
-  document.querySelector(".app")?.append(panel);
+  document.querySelector(".machine")?.append(panel);
 
   return {
     forcedStops() {

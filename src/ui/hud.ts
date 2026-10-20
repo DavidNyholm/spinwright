@@ -69,8 +69,8 @@ export interface HudHandlers {
 export class Hud {
   readonly #balance = new Counter(byId("balance"));
   readonly #win = new Counter(byId("win"));
-  readonly #lineBet = byId("line-bet");
   readonly #totalBet = byId("total-bet");
+  readonly #betDetail = byId("bet-detail");
   readonly #message = byId("message");
   readonly #spin = byId<HTMLButtonElement>("spin");
   readonly #betDown = byId<HTMLButtonElement>("bet-down");
@@ -114,9 +114,10 @@ export class Hud {
     this.#win.finish();
   }
 
-  setBet(lineBet: number, totalBet: number, canDecrease: boolean, canIncrease: boolean): void {
-    this.#lineBet.textContent = formatCredits(lineBet);
+  /** `detail` is the small line under the bet, such as how it splits over the paylines. */
+  setBet(totalBet: number, detail: string, canDecrease: boolean, canIncrease: boolean): void {
     this.#totalBet.textContent = formatCredits(totalBet);
+    this.#betDetail.textContent = detail;
     this.#state.canDecrease = canDecrease;
     this.#state.canIncrease = canIncrease;
     this.#apply();
@@ -152,6 +153,7 @@ export class Hud {
   #apply(): void {
     const { ready, spinning, broke, canDecrease, canIncrease } = this.#state;
     this.#spin.textContent = spinning ? "STOP" : "SPIN";
+    this.#spin.dataset.spinning = String(spinning);
     this.#spin.disabled = !ready || broke;
     this.#betDown.disabled = spinning || !canDecrease;
     this.#betUp.disabled = spinning || !canIncrease;

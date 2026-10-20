@@ -1,9 +1,10 @@
 /**
- * Seedable random numbers for the engine.
+ * Random numbers for the engine.
  *
- * sfc32 is a small, fast, well-tested non-cryptographic generator. It is used so that
- * simulations and QA repros are exactly reproducible from a seed. Browser play seeds it
- * from the Web Crypto API (randomSeed). It is not certified for real-money use.
+ * Two sources, one interface. Live play uses createCryptoRng (OS cryptographic randomness).
+ * Simulations and QA repros use createRng, an sfc32 generator that is exactly reproducible from a
+ * seed: small, fast and well tested, but not cryptographic. Neither is lab-certified for real-money
+ * use, and this project does not do real money.
  */
 export interface Rng {
   /** Next uniformly distributed unsigned 32-bit integer. */
@@ -56,6 +57,28 @@ export function createRng(seed: string | number): Rng {
   };
   for (let i = 0; i < WARMUP_ROUNDS; i++) nextUint32();
   return { nextUint32 };
+}
+
+const CRYPTO_BUFFER_WORDS = 256;
+
+/**
+ * Draws directly from the platform's cryptographic random source (Web Crypto), the way live play
+ * should: there is no seed to leak and no internal state to recover from observed results. It cannot
+ * be repeated, so simulations and QA runs use createRng with a seed instead.
+ */
+export function createCryptoRng(): Rng {
+  // One call to the OS source fills a buffer; a call per number would be needlessly slow.
+  const buffer = new Uint32Array(CRYPTO_BUFFER_WORDS);
+  let next = CRYPTO_BUFFER_WORDS;
+  return {
+    nextUint32(): number {
+      if (next === CRYPTO_BUFFER_WORDS) {
+        crypto.getRandomValues(buffer);
+        next = 0;
+      }
+      return buffer[next++]!;
+    },
+  };
 }
 
 /** A fresh 128-bit seed from the platform's cryptographic random source. */

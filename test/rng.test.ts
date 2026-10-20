@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createRng, nextInt, randomSeed } from "../src/engine/index.ts";
+import { createCryptoRng, createRng, nextInt, randomSeed } from "../src/engine/index.ts";
 
 describe("createRng", () => {
   it("gives the same stream for the same seed and different streams for different seeds", () => {
@@ -62,6 +62,44 @@ describe("nextInt", () => {
 
   it.each([0, -1, 1.5, Number.NaN, 2 ** 32 + 1])("rejects the bound %s", (bound) => {
     expect(() => nextInt(createRng("x"), bound)).toThrow(RangeError);
+  });
+});
+
+describe("createCryptoRng", () => {
+  it("is uniform over a small range (chi-square, 5 degrees of freedom)", () => {
+    // Unlike the seeded generator this is genuinely random, so the limit is set far out
+    // (a false failure has probability around 1e-7) rather than at the usual p = 0.001.
+    const rng = createCryptoRng();
+    const bound = 6;
+    const draws = 600_000;
+    const counts = new Array<number>(bound).fill(0);
+    for (let i = 0; i < draws; i++) counts[nextInt(rng, bound)]!++;
+    const expected = draws / bound;
+    const chiSquare = counts.reduce((sum, c) => sum + (c - expected) ** 2 / expected, 0);
+    expect(chiSquare).toBeLessThan(40);
+  });
+
+  it("keeps producing fresh values across buffer refills", () => {
+    const rng = createCryptoRng();
+    const seen = new Set<number>();
+    for (let i = 0; i < 2_000; i++) seen.add(rng.nextUint32());
+    // 2,000 draws from 2^32 values: a collision is rare, a repeated block would show up at once.
+    expect(seen.size).toBeGreaterThan(1_990);
+  });
+
+  it("gives independent generators different streams", () => {
+    const a = createCryptoRng();
+    const b = createCryptoRng();
+    const first = (rng: typeof a) => Array.from({ length: 4 }, () => rng.nextUint32());
+    expect(first(a)).not.toEqual(first(b));
+  });
+
+  it("works with nextInt like any other generator", () => {
+    const rng = createCryptoRng();
+    for (let i = 0; i < 1_000; i++) {
+      const x = nextInt(rng, 36);
+      expect(x >= 0 && x < 36 && Number.isInteger(x)).toBe(true);
+    }
   });
 });
 

@@ -4,51 +4,55 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark" />
-    <meta name="description" content="Spinwright: a play-money slot game with a tested math engine. No real money." />
+    <meta name="description" content="Spinwright: a play-money slot machine with a tested math engine. No real money." />
     <title>Spinwright</title>
   </head>
   <body data-state="loading">
-    <main class="app">
-      <header class="top">
-        <h1>Spinwright</h1>
-        <p class="badge">Play money only</p>
-      </header>
+    <main class="machine">
+      <div class="cabinet">
+        <header class="nameplate">
+          <h1>Spinwright</h1>
+          <p class="model">Machine No. 1 <span aria-hidden="true">/</span> Clockwork</p>
+          <p class="stamp">Play money</p>
+        </header>
 
-      <section class="stage" id="stage" aria-label="Slot machine"></section>
+        <section class="stage" id="stage" aria-label="Reels"></section>
 
-      <p id="message" class="message" role="status" aria-live="polite">Loading…</p>
+        <p id="message" class="readout" role="status" aria-live="polite">Loading…</p>
 
-      <section class="hud" aria-label="Controls">
-        <div class="stat">
-          <span class="label">Balance</span>
-          <output id="balance" class="value">0</output>
-        </div>
-
-        <div class="stat bet">
-          <span class="label" id="bet-label">Bet per line</span>
-          <div class="stepper" role="group" aria-labelledby="bet-label">
-            <button id="bet-down" type="button" aria-label="Lower bet">−</button>
-            <output id="line-bet" class="value">1</output>
-            <button id="bet-up" type="button" aria-label="Raise bet">+</button>
+        <section class="deck" aria-label="Controls">
+          <div class="window">
+            <span class="label">Balance</span>
+            <output id="balance" class="value">0</output>
           </div>
-          <span class="sub">Total bet <output id="total-bet">20</output></span>
-        </div>
 
-        <div class="stat">
-          <span class="label">Win</span>
-          <output id="win" class="value win">0</output>
-        </div>
+          <div class="window bet">
+            <span class="label" id="bet-label">Bet</span>
+            <div class="stepper" role="group" aria-labelledby="bet-label">
+              <button id="bet-down" class="knob" type="button" aria-label="Lower bet">−</button>
+              <output id="total-bet" class="value">20</output>
+              <button id="bet-up" class="knob" type="button" aria-label="Raise bet">+</button>
+            </div>
+            <span id="bet-detail" class="sub"></span>
+          </div>
 
-        <button id="spin" class="spin" type="button" disabled>SPIN</button>
+          <div class="window">
+            <span class="label">Win</span>
+            <output id="win" class="value win">0</output>
+          </div>
 
-        <label class="toggle">
-          <input id="turbo" type="checkbox" />
-          <span>Turbo</span>
-        </label>
-      </section>
+          <button id="spin" class="spin" type="button" disabled data-spinning="false">SPIN</button>
+
+          <label class="switch">
+            <input id="turbo" type="checkbox" />
+            <span class="track"><span class="thumb"></span></span>
+            <span class="switch-label">Turbo</span>
+          </label>
+        </section>
+      </div>
 
       <div id="broke" class="broke" hidden>
-        <p>You're out of credits. They're play money, so here are some more.</p>
+        <p>Out of credits. They're play money, so here are some more.</p>
         <button id="refill" type="button">Get free credits</button>
       </div>
 
@@ -57,7 +61,7 @@
         <p>Built with <span id="built-with"></span>.</p>
       </footer>
     </main>
-    <noscript><p class="message">Spinwright needs JavaScript to run.</p></noscript>
+    <noscript><p class="readout">Spinwright needs JavaScript to run.</p></noscript>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

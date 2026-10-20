@@ -1,18 +1,25 @@
+/*
+ * Look: a brass workshop machine. Near-black warm iron, engraved brass, one amber glow.
+ * The Pixi artwork (src/ui/art/palette.ts) uses the same brass, amber and iron tones.
+ */
 :root {
   color-scheme: dark;
-  --bg-top: #070914;
-  --bg-bottom: #131838;
-  --panel: #121631;
-  --panel-edge: #2b3166;
-  --text: #e8eaf6;
-  --muted: #9aa0cc;
-  --gold: #ffd54f;
-  --go: #00c853;
-  --go-bright: #00e676;
-  --danger: #ff5252;
-  --radius: 14px;
+  --ink: #0b0a09;
+  --iron-hi: #2a241d;
+  --iron-lo: #14110e;
+  --recess: #070605;
+  --brass: #c79a45;
+  --brass-light: #f0d28a;
+  --brass-dark: #6e4f1c;
+  --amber: #ffb347;
+  --amber-hot: #ffd27a;
+  --amber-dim: #a8691c;
+  --text: #efe6d5;
+  --muted: #9a8f7c;
+  --rust: #c4482d;
+  --display: "Big Shoulders Display", "Arial Narrow", Impact, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
   --gutter: 16px;
-  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 * {
@@ -22,189 +29,317 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: linear-gradient(180deg, var(--bg-top), var(--bg-bottom)) fixed;
+  background: radial-gradient(ellipse 90% 70% at 50% 28%, #1c1712 0%, var(--ink) 62%, #050403 100%) fixed;
   color: var(--text);
-  font-family: var(--font);
+  font-family: var(--mono);
   line-height: 1.4;
 }
 
-.app {
-  max-width: 940px;
+/* A faint grain, so the dark is not a flat digital gradient. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.09;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.machine {
+  position: relative;
+  max-width: 1000px;
   margin: 0 auto;
-  padding: var(--gutter);
+  padding: 22px var(--gutter) 14px;
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
-.top {
+/* The cabinet: iron plate with a brass rim and a rivet in each corner. */
+.cabinet {
+  --rivet: radial-gradient(circle, #f6dc95 0 1.5px, #9a7630 2.5px, #3a2a0e 4.5px, transparent 5px);
+  position: relative;
+  padding: 16px 22px 22px;
+  border: 2px solid var(--brass-dark);
+  border-radius: 22px;
+  background:
+    var(--rivet) 9px 9px / 14px 14px no-repeat,
+    var(--rivet) calc(100% - 9px) 9px / 14px 14px no-repeat,
+    var(--rivet) 9px calc(100% - 9px) / 14px 14px no-repeat,
+    var(--rivet) calc(100% - 9px) calc(100% - 9px) / 14px 14px no-repeat,
+    linear-gradient(180deg, var(--iron-hi), var(--iron-lo));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 236, 190, 0.2),
+    inset 0 0 0 1px #000,
+    0 30px 80px rgba(0, 0, 0, 0.8);
+}
+
+.nameplate {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  align-items: baseline;
+  gap: 18px;
+  margin: 0 8px 12px;
 }
 
-h1 {
+.nameplate h1 {
   margin: 0;
-  font-size: 1.6rem;
-  letter-spacing: 0.04em;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 1.7rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--brass-light);
+  text-shadow: 0 1px 0 #000, 0 -1px 0 rgba(255, 236, 190, 0.18);
 }
 
-.badge {
+.model {
   margin: 0;
-  padding: 4px 10px;
-  border: 1px solid var(--panel-edge);
-  border-radius: 999px;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 0.95rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
   color: var(--muted);
+}
+
+.model span {
+  margin: 0 0.4em;
+  color: var(--brass-dark);
+}
+
+.stamp {
+  margin: 0 0 0 auto;
+  padding: 2px 10px;
+  border: 1.5px solid var(--amber-dim);
+  border-radius: 3px;
+  color: var(--amber-dim);
+  font-family: var(--display);
+  font-weight: 700;
   font-size: 0.8rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  transform: rotate(-2deg);
 }
 
 .stage {
   width: 100%;
-  max-width: 900px;
-  margin: 0 auto;
-  border-radius: 24px;
+  border-radius: 14px;
   overflow: hidden;
-  box-shadow: 0 0 40px rgba(124, 77, 255, 0.18);
+  box-shadow: 0 0 0 1px #000, 0 1px 0 rgba(255, 236, 190, 0.12);
 }
 
 .stage canvas {
   display: block;
 }
 
-.message {
-  min-height: 1.6em;
-  margin: 0;
+/* The message line: a small lit readout under the reels. */
+.readout {
+  margin: 14px 0;
+  padding: 9px 14px;
+  min-height: 2.6em;
+  background: linear-gradient(180deg, #060504, #0c0a08);
+  border-radius: 6px;
+  box-shadow: inset 0 2px 7px rgba(0, 0, 0, 0.9), 0 1px 0 rgba(255, 236, 190, 0.1);
+  color: var(--amber);
+  font-weight: 500;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
   text-align: center;
-  color: var(--gold);
-  font-weight: 600;
+  text-transform: uppercase;
+  text-shadow: 0 0 10px rgba(255, 179, 71, 0.35);
 }
 
-.hud {
+.deck {
   display: grid;
   grid-template-columns: 1fr 1.3fr 1fr auto auto;
   align-items: center;
-  gap: 12px;
-  padding: 14px;
-  background: var(--panel);
-  border: 1px solid var(--panel-edge);
-  border-radius: var(--radius);
+  gap: 16px;
 }
 
-.stat {
+/* A number window: recessed, dark glass, amber digits. */
+.window {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  padding: 8px 14px 10px;
+  background: linear-gradient(180deg, #050403, #0d0b09);
+  border-radius: 8px;
+  box-shadow: inset 0 2px 9px rgba(0, 0, 0, 0.95), 0 1px 0 rgba(255, 236, 190, 0.14);
 }
 
 .label {
-  color: var(--muted);
-  font-size: 0.75rem;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  color: var(--muted);
 }
 
 .value {
-  font-size: 1.5rem;
-  font-weight: 700;
+  font-weight: 600;
+  font-size: 1.75rem;
+  line-height: 1.15;
   font-variant-numeric: tabular-nums;
+  color: var(--amber);
+  text-shadow: 0 0 14px rgba(255, 179, 71, 0.4);
 }
 
 .value.win {
-  color: var(--gold);
+  color: var(--amber-hot);
 }
 
 .sub {
   color: var(--muted);
-  font-size: 0.8rem;
-}
-
-.sub output {
-  color: var(--text);
-  font-weight: 600;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
 }
 
 .stepper {
   display: flex;
   align-items: center;
-  gap: 10px;
-}
-
-.stepper .value {
-  min-width: 2ch;
-  text-align: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 button {
   font: inherit;
-  color: var(--text);
   cursor: pointer;
 }
 
-button:focus-visible,
-.toggle:has(input:focus-visible) {
-  outline: 3px solid var(--gold);
-  outline-offset: 2px;
-}
-
-.stepper button {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: 1px solid var(--panel-edge);
-  background: #1b2146;
-  font-size: 1.3rem;
-  line-height: 1;
-}
-
 button:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: not-allowed;
 }
 
+button:focus-visible,
+.switch:has(input:focus-visible) .track {
+  outline: 3px solid var(--amber-hot);
+  outline-offset: 3px;
+}
+
+/* Small brass knobs for the bet. */
+.knob {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid #2a1c05;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 28%, #f6dc95, #b98a38 58%, #5e4217);
+  box-shadow: 0 3px 0 #2a1c05, inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  color: #2a1c05;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 1.7rem;
+  line-height: 1;
+  text-shadow: 0 1px 0 rgba(255, 236, 190, 0.5);
+}
+
+.knob:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #2a1c05, inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+/* The spin knob: a ridged brass rim around a domed face. */
 .spin {
-  width: 108px;
-  height: 108px;
+  width: 118px;
+  height: 118px;
+  padding: 10px;
   border: 0;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, var(--go-bright), var(--go) 70%);
-  color: #04210f;
-  font-size: 1.25rem;
+  background:
+    radial-gradient(circle at 36% 28%, #ffe6a8 0%, #e2a93c 34%, #9a6410 70%, #5a380a 100%) content-box,
+    repeating-conic-gradient(from 0deg, #4a3410 0deg 5deg, #bd913d 5deg 10deg) border-box;
+  box-shadow: 0 6px 0 #2a1c05, 0 14px 26px rgba(0, 0, 0, 0.6);
+  color: #2a1a04;
+  font-family: var(--display);
   font-weight: 800;
-  letter-spacing: 0.06em;
-  box-shadow: 0 6px 0 #00793a, 0 10px 24px rgba(0, 200, 83, 0.35);
+  font-size: 1.9rem;
+  letter-spacing: 0.1em;
+  text-shadow: 0 1px 0 rgba(255, 236, 190, 0.6), 0 -1px 0 rgba(0, 0, 0, 0.2);
   transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+
+.spin[data-spinning="true"] {
+  background:
+    radial-gradient(circle at 36% 28%, #f0a38f 0%, #c4482d 36%, #7a2214 72%, #3d0f08 100%) content-box,
+    repeating-conic-gradient(from 0deg, #3a1008 0deg 5deg, #a0553f 5deg 10deg) border-box;
+  color: #fbe2d8;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
 }
 
 .spin:active:not(:disabled) {
   transform: translateY(4px);
-  box-shadow: 0 2px 0 #00793a, 0 6px 16px rgba(0, 200, 83, 0.35);
+  box-shadow: 0 2px 0 #2a1c05, 0 8px 16px rgba(0, 0, 0, 0.6);
 }
 
-.toggle {
+/* Turbo: a toggle lever. */
+.switch {
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 6px;
-  color: var(--muted);
   cursor: pointer;
 }
 
-.toggle input {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--go);
+.switch input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.track {
+  position: relative;
+  width: 50px;
+  height: 26px;
+  border-radius: 13px;
+  background: linear-gradient(180deg, #040302, #0e0b08);
+  box-shadow: inset 0 2px 6px #000, 0 1px 0 rgba(255, 236, 190, 0.14);
+}
+
+.thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #cfc4ad, #6c6355 70%, #2e2a23);
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.7);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.switch input:checked + .track .thumb {
+  transform: translateX(24px);
+  background: radial-gradient(circle at 35% 30%, #ffe6a8, #e0963a 65%, #8a4a0a);
+  box-shadow: 0 0 10px rgba(255, 179, 71, 0.55), 0 2px 3px rgba(0, 0, 0, 0.7);
+}
+
+.switch input:disabled + .track {
+  opacity: 0.4;
+}
+
+.switch-label {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 .broke {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 12px 14px;
-  background: #2a1620;
-  border: 1px solid var(--danger);
-  border-radius: var(--radius);
+  gap: 14px;
+  padding: 12px 16px;
+  background: linear-gradient(180deg, #2b1510, #1c0d0a);
+  border: 1px solid var(--rust);
+  border-radius: 10px;
 }
 
 .broke[hidden] {
@@ -213,21 +348,28 @@ button:disabled {
 
 .broke p {
   margin: 0;
+  font-size: 0.9rem;
 }
 
 .broke button {
+  flex: none;
   padding: 10px 16px;
-  border: 0;
-  border-radius: 10px;
-  background: var(--gold);
-  color: #2b2100;
-  font-weight: 700;
+  border: 1px solid #2a1c05;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f6dc95, #b98a38);
+  color: #2a1c05;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 1rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 
 .footer {
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
   text-align: center;
 }
 
@@ -238,13 +380,16 @@ button:disabled {
 .debug {
   padding: 12px;
   border: 1px dashed var(--muted);
-  border-radius: var(--radius);
-  font-size: 0.85rem;
+  border-radius: 10px;
+  font-size: 0.8rem;
 }
 
 .debug h2 {
   margin: 0 0 6px;
-  font-size: 0.95rem;
+  font-family: var(--display);
+  font-size: 1rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
 }
 
 .debug p {
@@ -263,10 +408,11 @@ button:disabled {
   min-width: 0;
   flex: 1;
   padding: 4px;
-  background: #0b0e22;
-  border: 1px solid var(--panel-edge);
-  border-radius: 6px;
+  background: var(--recess);
+  border: 1px solid var(--brass-dark);
+  border-radius: 4px;
   color: var(--text);
+  font: inherit;
 }
 
 .debug pre {
@@ -276,37 +422,63 @@ button:disabled {
   color: var(--muted);
 }
 
-@media (max-width: 720px) {
-  .hud {
+@media (max-width: 760px) {
+  .cabinet {
+    padding: 12px 12px 16px;
+  }
+  .nameplate {
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    margin: 4px 6px 10px;
+  }
+  .nameplate h1 {
+    font-size: 1.35rem;
+  }
+  .model {
+    font-size: 0.8rem;
+  }
+  .stamp {
+    margin-left: 0;
+    font-size: 0.7rem;
+  }
+  .deck {
     grid-template-columns: 1fr 1fr;
     grid-template-areas:
       "balance win"
       "bet bet"
       "spin turbo";
+    gap: 12px;
   }
-  .hud > .stat:nth-child(1) {
+  .deck > .window:nth-child(1) {
     grid-area: balance;
   }
-  .hud > .stat:nth-child(3) {
+  .deck > .window:nth-child(3) {
     grid-area: win;
-    text-align: right;
-    align-items: flex-end;
   }
-  .hud > .bet {
+  .deck > .bet {
     grid-area: bet;
   }
   .spin {
     grid-area: spin;
     justify-self: center;
   }
-  .toggle {
+  .switch {
     grid-area: turbo;
     justify-self: center;
+  }
+  .value {
+    font-size: 1.45rem;
+  }
+  .broke {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .spin {
+  .spin,
+  .thumb {
     transition: none;
   }
 }

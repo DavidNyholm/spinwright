@@ -1,6 +1,9 @@
 import { Container, Graphics } from "pixi.js";
 import type { Application, Texture, Ticker } from "pixi.js";
 import type { GameConfig, LineWin, Position, ScatterWin, SpinResult, SymbolId } from "../engine/index.ts";
+import { drawReelBed, drawReelShade } from "./art/reelBed.ts";
+import type { WindowRect } from "./art/reelBed.ts";
+import { PALETTE } from "./art/palette.ts";
 import { cellCenterX, cellCenterY, LAYOUT, reelX, rowY, stageSize } from "./layout.ts";
 import { ReelView } from "./reel.ts";
 import { FEEL, ReelMotion } from "./reelMotion.ts";
@@ -9,7 +12,10 @@ const BLUR = { max: 12, perCellSpeed: 0.35 };
 /** A longer frame (background tab, hiccup) is treated as this long, so reels never lurch. */
 const MAX_FRAME_MS = 50;
 
-const GOLD = 0xffd54f;
+const GLOW_STROKES = [
+  { width: 12, color: PALETTE.amber, alpha: 0.22 },
+  { width: 4, color: PALETTE.amberHot, alpha: 1 },
+] as const;
 const DIM_ALPHA = 0.3;
 const SHOW_ALL_MS = 1100;
 const SHOW_STEP_MS = 1300;
@@ -52,13 +58,13 @@ export class SlotView {
     this.#reduceMotion = options.reduceMotion;
     const { width, height } = stageSize(game.reels, game.rows);
 
-    const board = new Graphics().roundRect(0, 0, width, height, 24).fill(0x0c0e1f).stroke({ width: 3, color: 0x2b3166 });
-    for (let reel = 0; reel < game.reels; reel++) {
-      board
-        .roundRect(reelX(reel) - 4, LAYOUT.paddingY - 4, LAYOUT.cellWidth + 8, game.rows * LAYOUT.cellHeight + 8, 14)
-        .fill(0x060812);
-    }
-    app.stage.addChild(board);
+    const windows: WindowRect[] = Array.from({ length: game.reels }, (_, reel) => ({
+      x: reelX(reel),
+      y: LAYOUT.paddingY,
+      width: LAYOUT.cellWidth,
+      height: game.rows * LAYOUT.cellHeight,
+    }));
+    app.stage.addChild(drawReelBed(width, height, windows));
 
     const geometry = { cellWidth: LAYOUT.cellWidth, cellHeight: LAYOUT.cellHeight, rows: game.rows };
     game.strips.forEach((strip, index) => {
@@ -69,6 +75,8 @@ export class SlotView {
       this.#motions.push(new ReelMotion());
       this.#appliedShifts.push(0);
     });
+
+    app.stage.addChild(drawReelShade(windows));
 
     const overlay = new Container();
     overlay.addChild(this.#path, this.#frames);
@@ -162,16 +170,21 @@ export class SlotView {
         reel.setCellAlpha(row, lit.has(reelIndex * this.#game.rows + row) ? 1 : DIM_ALPHA);
       }
     });
-    for (const [reel, row] of positions) {
-      this.#frames.roundRect(reelX(reel) + 4, rowY(row) + 4, LAYOUT.cellWidth - 8, LAYOUT.cellHeight - 8, 16);
+    // Each outline is drawn twice: a wide faint stroke for the glow, then a crisp one on top.
+    for (const stroke of GLOW_STROKES) {
+      for (const [reel, row] of positions) {
+        this.#frames.roundRect(reelX(reel) + 4, rowY(row) + 4, LAYOUT.cellWidth - 8, LAYOUT.cellHeight - 8, 12);
+      }
+      this.#frames.stroke(stroke);
     }
-    this.#frames.stroke({ width: 4, color: GOLD });
     if (line !== null) {
-      line.forEach((row, reel) => {
-        if (reel === 0) this.#path.moveTo(cellCenterX(reel), cellCenterY(row));
-        else this.#path.lineTo(cellCenterX(reel), cellCenterY(row));
-      });
-      this.#path.stroke({ width: 5, color: GOLD, alpha: 0.85, join: "round", cap: "round" });
+      for (const stroke of GLOW_STROKES) {
+        line.forEach((row, reel) => {
+          if (reel === 0) this.#path.moveTo(cellCenterX(reel), cellCenterY(row));
+          else this.#path.lineTo(cellCenterX(reel), cellCenterY(row));
+        });
+        this.#path.stroke({ ...stroke, join: "round", cap: "round" });
+      }
     }
   }
 

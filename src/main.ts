@@ -1,3 +1,8 @@
+import "@fontsource/big-shoulders-display/latin-600";
+import "@fontsource/big-shoulders-display/latin-700";
+import "@fontsource/big-shoulders-display/latin-800";
+import "@fontsource/ibm-plex-mono/latin-500";
+import "@fontsource/ibm-plex-mono/latin-600";
 import "./style.css";
 import { Application } from "pixi.js";
 import { BUILT_WITH } from "./app/about.ts";
@@ -5,7 +10,7 @@ import { loadPrefs, savePrefs } from "./app/prefs.ts";
 import { SETTINGS } from "./app/settings.ts";
 import { browserStore } from "./app/storage.ts";
 import { Wallet } from "./app/wallet.ts";
-import { buildGrid, createRng, randomSeed, spin, spinFromStops } from "./engine/index.ts";
+import { buildGrid, createCryptoRng, createRng, randomSeed, spin, spinFromStops } from "./engine/index.ts";
 import type { GameConfig, SpinResult } from "./engine/index.ts";
 import { games } from "./games/index.ts";
 import { createDebugPanel } from "./ui/debugPanel.ts";
@@ -13,7 +18,7 @@ import { formatCredits, Hud } from "./ui/hud.ts";
 import { LAYOUT, stageSize } from "./ui/layout.ts";
 import { SlotView } from "./ui/slotView.ts";
 import type { WinStep } from "./ui/slotView.ts";
-import { createSymbolTextures, symbolName } from "./ui/theme.ts";
+import { CLOCKWORK, createSymbolTextures } from "./ui/theme.ts";
 
 const GAME_ID = "classic";
 /** The win counter runs longer for bigger wins, within these limits. */
@@ -35,7 +40,10 @@ async function main(): Promise<void> {
 
   const params = new URLSearchParams(location.search);
   const seed = params.get("seed") ?? randomSeed();
-  const rng = createRng(seed);
+  // Live play draws from the OS cryptographic source. A seeded, repeatable generator is only used
+  // when QA asks for one (?seed=, or ?debug, which shows the seed so a run can be replayed).
+  const repeatable = params.has("seed") || params.has("debug");
+  const rng = repeatable ? createRng(seed) : createCryptoRng();
   const debug = params.has("debug") ? createDebugPanel(game, seed) : null;
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -84,7 +92,9 @@ async function main(): Promise<void> {
     app.canvas.setAttribute("role", "img");
     document.getElementById("stage")!.append(app.canvas);
 
-    const textures = createSymbolTextures(app.renderer, new Set(game.strips.flat()), LAYOUT.cellWidth, LAYOUT.cellHeight);
+    // The symbol art uses the display font; draw it only once the font is ready.
+    await document.fonts.load('800 48px "Big Shoulders Display"');
+    const textures = createSymbolTextures(app.renderer, CLOCKWORK, new Set(game.strips.flat()), LAYOUT.cellWidth, LAYOUT.cellHeight);
     view = new SlotView(app, game, textures, { reduceMotion });
   } catch (error) {
     console.error(error);
@@ -129,7 +139,7 @@ async function main(): Promise<void> {
   let busy = false;
 
   function describeGrid(grid: readonly (readonly string[])[]): string {
-    return grid.map((column, reel) => `Reel ${reel + 1}: ${column.map(symbolName).join(", ")}`).join(". ");
+    return grid.map((column, reel) => `Reel ${reel + 1}: ${column.map(CLOCKWORK.name).join(", ")}`).join(". ");
   }
 
   function describeStep(step: WinStep, result: SpinResult): string {
@@ -137,15 +147,20 @@ async function main(): Promise<void> {
       case "all":
         return `You won ${formatCredits(result.totalWin)} credits`;
       case "line":
-        return `Line ${step.win.line + 1}: ${step.win.count} × ${symbolName(step.win.symbol)} pays ${formatCredits(step.win.win)}`;
+        return `Line ${step.win.line + 1}: ${step.win.count} × ${CLOCKWORK.name(step.win.symbol)} pays ${formatCredits(step.win.win)}`;
       case "scatter":
-        return `${step.win.count} × ${symbolName(step.win.symbol)} pays ${formatCredits(step.win.win)}`;
+        return `${step.win.count} × ${CLOCKWORK.name(step.win.symbol)} pays ${formatCredits(step.win.win)}`;
     }
   }
 
   function refreshBet(): void {
     const index = levels.indexOf(prefs.lineBet);
-    hud.setBet(prefs.lineBet, prefs.lineBet * lines, index > 0, index < levels.length - 1);
+    hud.setBet(
+      prefs.lineBet * lines,
+      `${formatCredits(prefs.lineBet)} per line × ${lines} lines`,
+      index > 0,
+      index < levels.length - 1,
+    );
   }
 
   function refreshBroke(): void {
