@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { assertFitsLoop, Biquad, makeLoop, midi, noiseSource, peakOf, rmsOf, SAMPLE_RATE, silence, tone } from "../src/audio/dsp.ts";
 import type { Samples } from "../src/audio/dsp.ts";
-import { heatSemitones, panFor, RecordingSfx, semitoneRate, SFX_NAMES, silent, winSound } from "../src/audio/sfx.ts";
+import { heatSemitones, panFor, RecordingSfx, semitoneRate, SFX_NAMES, silent, strikeSemitones, winSound } from "../src/audio/sfx.ts";
 import type { SfxName } from "../src/audio/sfx.ts";
 import { LOOPING, renderAll, renderSound } from "../src/audio/sounds.ts";
 import { decodeWav, encodeWav } from "../src/audio/wav.ts";
@@ -110,6 +110,26 @@ describe("what the sounds are made of", () => {
     expect(energyAt(coin, 3136, 0, 0.05)).toBeGreaterThan(30 * energyAt(coin, 500, 0, 0.05));
     const stop = get("reelStop");
     expect(energyAt(stop, 80, 0, 0.15)).toBeGreaterThan(5 * energyAt(stop, 9000, 0, 0.15));
+  });
+
+  it("rings the anvil as iron: a low thump under a bright ring at the pitch asked for", () => {
+    const anvil = get("anvil");
+    expect(energyAt(anvil, 540, 0.02, 0.2)).toBeGreaterThan(8 * energyAt(anvil, 300, 0.02, 0.2));
+    expect(energyAt(anvil, 100, 0, 0.1)).toBeGreaterThan(energyAt(anvil, 9000, 0, 0.1));
+  });
+
+  it("makes the mainspring's hammer lighter and higher than the player's", () => {
+    const player = get("anvil");
+    const spring = get("autoStrike");
+    expect(peakOf(spring)).toBeLessThan(peakOf(player));
+    expect(spring.length).toBeLessThan(player.length);
+    expect(energyAt(spring, 1400, 0.005, 0.1)).toBeGreaterThan(5 * energyAt(spring, 540, 0.005, 0.1));
+  });
+
+  it("makes the refusal low and dull, so it cannot be mistaken for a reward", () => {
+    const denied = get("denied");
+    expect(energyAt(denied, 90, 0, 0.1)).toBeGreaterThan(20 * energyAt(denied, 2500, 0, 0.1));
+    expect(peakOf(denied)).toBeLessThan(peakOf(get("upgrade")));
   });
 
   it("rises when it says it rises", () => {
@@ -242,6 +262,11 @@ describe("choosing sounds", () => {
     for (let i = 1; i < semitones.length; i++) expect(semitones[i]!).toBeGreaterThanOrEqual(semitones[i - 1]!);
     expect(Math.max(...semitones)).toBe(19);
     expect(heatSemitones(0)).toBe(0);
+  });
+
+  it("rings the anvil brighter at hotter tiers, and holds at the top", () => {
+    expect([0, 1, 2, 3, 4, 9].map(strikeSemitones)).toEqual([0, 2, 4, 7, 7, 7]);
+    expect(strikeSemitones(-1)).toBe(0);
   });
 
   it("turns semitones into a playback rate", () => {

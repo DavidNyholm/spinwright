@@ -1,8 +1,8 @@
 # Spinwright
 
-Two play-money slot machines built around pure TypeScript math engines, with Monte Carlo simulators that prove the maths, and a PixiJS browser front end. Credits are virtual only. There are no payments, accounts or real-money features anywhere in this project.
+A small workshop of play-money games: two slot machines built around pure TypeScript math engines (with Monte Carlo simulators that prove the maths), and a clicker, the Forge, that earns the credits to play them. A PixiJS browser front end ties them together behind a lobby. Credits are virtual only. There are no payments, accounts or real-money features anywhere in this project.
 
-**Status:** both machines, the simulators and the UI are done. The GitHub Pages deploy and further features are next.
+**Status:** the lobby, both machines, the Forge, sound and the simulators are done. The GitHub Pages deploy is next.
 
 ## Play it locally
 
@@ -13,11 +13,11 @@ npm install
 npm run dev
 ```
 
-Then open the address Vite prints. Space or Enter spins, and pressing it mid-spin plays the rest of the round quickly. Balance, bet, turbo and the machine you last played are saved in the browser. Switch machines with the plates in the nameplate.
+Then open the address Vite prints: it opens on the lobby, with a card for each game. Pages are addresses in the URL hash (`#/`, `#/play/classic`, `#/play/crucible`, `#/forge`), so the back button works and a page can be linked to. On a machine, Space or Enter spins, and pressing it mid-spin plays the rest of the round quickly. Balance, bet, turbo, sound and the Forge's upgrades are saved in the browser. There is no free refill: when the credits run out, the machines point you to the Forge.
 
 The look is a brass workshop, drawn entirely with code: engraved metal plates, gears, gems, a dark iron cabinet with amber displays. There are no image files. To review the artwork on its own, open `/symbols.html` on the dev server.
 
-Sound is on by default and starts at your first click or key press (browsers keep a page silent until then). The **Sound** switch and volume slider are in the control deck, and both are remembered. To audition every sound, open `/sounds.html` on the dev server.
+Sound is on by default and starts at your first click or key press (browsers keep a page silent until then). The **Sound** switch and volume slider are in the bar across the top of every page, and both are remembered. To audition every sound, open `/sounds.html` on the dev server.
 
 ## The machines
 
@@ -36,14 +36,28 @@ Measured over 4 million plays (see the simulator below):
 | Hit frequency | 62% |
 | Volatility | sd about 10x the bet per play |
 
+## The Forge
+
+A clicker that earns the credits the machines spend. Strike the anvil by clicking it, tapping it, pressing the Strike button, or pressing Space or Enter.
+
+- **Strikes** pay credits. **Heat** is a combo meter: it builds as you keep striking and multiplies the next strikes (Cold x1, Warm x1.5, Hot x2, White-hot x3), then drains when you pause.
+- **Four upgrades**, bought with credits and kept between visits: a heavier hammer (each strike pays more), tongs (heat builds faster and cools slower), the mainspring, and lucky ingots. Costs grow steeply, and a pacing test in the suite keeps them there: a scripted player who strikes steadily, catches every ingot and always buys the cheapest upgrade gets a first upgrade inside 45 seconds at five strikes a second, and has maxed nothing after ten minutes at two, five or eight. (That guards the pacing; whether it is fun is for a human to judge.)
+- **The mainspring** is the automation, built so that it is not idle income. Your strikes *wind* it; once you pause for about 0.8 seconds it *unwinds into automatic strikes* (each worth 60% of a base strike) until it runs down. It stores your effort rather than making any, so it can only pay out what you put in, it never earns while you are away, and the Forge's clock stops when the tab is hidden. Higher levels hold more turns, take more from each strike and unwind faster. In the picture the gear turns back as you wind it and forward as it strikes.
+- **Ingots** flash across the forge now and then (every 25 to 55 seconds, only while the Forge is open). Click one before it cools for a windfall (30 strikes' worth) or a ten-second frenzy in which every strike, the mainspring's too, pays five times as much. Luck shortens the wait and raises both prizes.
+- **Credits go straight into the shared wallet**, whole credits only: a strike worth a part-credit carries the rest forward, so over time exactly what was earned is paid.
+
+Every number that sets how the Forge plays is in `src/forge/config.ts`, and the upgrade cards describe themselves from the same functions the rules run on, so what a card says is what the Forge does.
+
 ## How it works
 
 - **The outcome is decided first, then animated.** A round is resolved completely (every grid, every win, the total) before anything moves. The UI only plays back a result that already exists, the same split real slot software uses. The win is banked in the wallet the moment the outcome is drawn, so a page refresh mid-spin cannot lose it.
 - **Two engines, one page.** The line engine and the cascade engine are separate, pure, DOM-free modules. A small `Machine` interface (plan a round, show it, quick-stop it) is all the page knows, so the wallet, bet, spin button and readouts are shared and a new machine is a new `Machine`.
+- **The Forge is a rules engine with a clock you hand it.** `ForgeEngine` only moves when `tick(ms)` is called and only draws randomness from the generator it is given, so a whole session can be played in a test. The Pixi scene draws what it reports (events and state) and decides nothing.
+- **One game at a time.** Each page is built when you visit it and torn down when you leave, so leaving a machine mid-spin (the win is already in the wallet) or the Forge (progress is saved) leaves nothing running.
 - **Games are data.** A game is a validated config (reel strips and paylines, or gem weights and cluster pays). `defineGame` and `defineCascadeGame` throw one error listing every problem when the module loads.
 - **Whole credits only.** Bets and wins are integers, so there is no floating-point drift in anyone's balance.
 - **Reproducible.** Every simulation and QA run takes a seed, and the same seed gives the same spins.
-- **The engines have no browser code.** A second TypeScript config type-checks `src/engine` and `src/games` without the DOM library, so they stay runnable in Node and could move to a server.
+- **The engines have no browser code.** A second TypeScript config type-checks `src/engine`, `src/games`, the Forge's rules (`src/forge`), the router and the catalog without the DOM library, so they stay runnable in Node and could move to a server.
 - **Animation is plain numbers first.** Reel motion and the cascade's falling pieces are pure plans driven by an explicit clock; the Pixi view only displays them. That is what makes them testable.
 - **Symbols are drawn with vector shapes**, so there are no art files to license. A different theme is a different set of textures.
 
@@ -54,6 +68,7 @@ Every sound is synthesised by code (`src/audio`), the way the artwork is drawn b
 - **Reels:** a pull as they start, a ratchet while they spin, and a thump as each one lands, a little higher in pitch than the last and panned from the left speaker to the right.
 - **Crucible:** the new fill lands as a rolling arpeggio, one note per column. Each step of a cascade plays a note one rung higher on a pentatonic ladder as the heat climbs, then a glass-shattering burst. Embers crackle, and the furnace lights with a rising roar and settles into a low rumble for the feature.
 - **Wins:** four tiers of bell jingle by size, coin ticks while the counter rolls up.
+- **Forge:** a hammer on iron (a low thump under an inharmonic ring, so it sounds like metal and not a bell) that rings brighter at each heat tier, a lighter higher tap for the mainspring's hammer, gears and a chime for an upgrade, a dull thunk for a purchase you cannot afford, and bells for an ingot and a frenzy.
 - **Safety:** a limiter sits before the speakers so many sounds at once cannot clip, and the voice count is capped.
 
 `npm run sounds` writes every sound to `sounds-out/` as a WAV file. `/sounds.html` plays each one, the heat and win ladders, and whole sequences as the game plays them.
@@ -96,7 +111,7 @@ Both print a win-size distribution, and exit non-zero if the two estimates disag
 
 ## QA tools
 
-Add `?debug` to the page address to get a QA panel: force exact reel stops on Clockwork to reproduce a layout, and see the raw outcome of the last round on either machine. `?seed=anything` makes a whole run repeatable, so a bug report can be replayed exactly. With `?debug` the page also exposes `window.spinwright`, which QA scripts use to read what is actually drawn and to step the animation at a fixed frame rate regardless of how fast the browser is running.
+Add `?debug` to the page address to get a QA panel: force exact reel stops on Clockwork to reproduce a layout, and see the raw outcome of the last round on either machine. `?seed=anything` makes a whole run repeatable, so a bug report can be replayed exactly. With `?debug` the page also exposes `window.spinwright`, which QA scripts use to read what is actually drawn, to move between pages (`go('#/forge')`), and to step the animation at a fixed frame rate regardless of how fast the browser is running. On the Forge, `window.spinwright.forge` gives the engine, its state and `advance(ms)`, which cranks the clock by hand.
 
 ## How it is checked
 
@@ -115,7 +130,9 @@ Add `?debug` to the page address to get a QA panel: force exact reel stops on Cl
 
 **In the browser.** Sixty real spins on Clockwork and four hundred on Crucible (including two full furnace features) were checked, normal and turbo, with quick stops: the picture read back from the screen equals the engine's result every time, the wallet and on-screen numbers match, and there were no page errors. The cascade animation was measured frame by frame over 120 spins (7,785 frames): the worst overlap between falling pieces is 0.1 pixel. The production build was also played from a `/spinwright/` subpath, the way GitHub Pages serves it.
 
-**Tests against deliberate bugs.** Twenty-five injected bugs across both engines, the motion code and the sound code (a loop crossfade run backwards, a hum that does not fit its loop, a sound normalised past clipping, a bell on the wrong note, modulo bias, a non-wrapping reel window, wilds not extending runs, a wrong RTP divisor, scatter paid on the wrong bet, a wrong landing offset, heat that never rises, a reversed refill order, a cluster finder that ignores one neighbour, a feature that needs one scatter too many, heat that resets between feature spins, a missing win cap, and more) were each caught by the suite.
+**The Forge.** The rules engine is played in tests with an explicit clock and a seeded generator: heat tiers and draining, the mainspring's winding, idle delay, run-down and capacity, the carry that makes part-credits pay out exactly, ingot timing, windfall and frenzy (including that the mainspring's strikes are multiplied too), purchases, refusals when short of credits, and saving and loading (including damaged saves). The upgrade cards are tested against the engine, so a card cannot describe a number the Forge does not use. The hammer's swing (one impact per strike, no jump when strikes come faster than it lifts), the sparks, the floating numbers and the colour of hot iron are plain functions with their own tests. The router and the lobby's catalog are tested too, including that the return figures the lobby quotes match the engines (Clockwork exactly, Crucible within a point of the economy test). The Forge's pages were driven in a real browser: real clicks on the ingot, the anvil and the buttons (an ingot click does not also strike), purchases, the mainspring running down, ingots appearing, saved progress surviving a reload, the out-of-credits banner, and leaving a machine mid-spin; it was also checked at phone width.
+
+**Tests against deliberate bugs.** Fifty-four injected bugs across both engines, the Forge, the motion code and the sound code (a loop crossfade run backwards, a hum that does not fit its loop, a sound normalised past clipping, a bell on the wrong note, modulo bias, a non-wrapping reel window, wilds not extending runs, a wrong RTP divisor, scatter paid on the wrong bet, a wrong landing offset, heat that never rises, a reversed refill order, a cluster finder that ignores one neighbour, a feature that needs one scatter too many, heat that resets between feature spins, a missing win cap, a hammer that never reaches the iron, sparks thrown downward, floating numbers that never fade, a card quoting the next level's value, a wallet that lets credits go negative, a router that opens unknown machines, and more) were each caught by the suite. (A fifty-fifth changed nothing, and showed a line of the router to be redundant; the line was removed.)
 
 ## Layout
 
@@ -124,9 +141,11 @@ src/engine/            the line engine: config + validation, RNG, spin, evaluati
 src/engine/cascade/    the cascade engine: grid, clusters, refill, heat, feature, exact trigger chance
 src/games/             game definitions (data)
 src/sim/               Monte Carlo simulators (CLI)
-src/app/               wallet, saved preferences, the Machine interface (no drawing code)
+src/forge/            the Forge's rules (config, engine, card text): no drawing code
+src/app/               wallet, saved preferences, routes, the lobby catalog, the Machine interface (no drawing code)
+src/pages/             the pages: top bar, lobby, slot machine, Forge
 src/machines/          Clockwork and Crucible: a game plus its look and motion
-src/ui/                PixiJS reels, cascade view, animator, HUD, QA panel
+src/ui/                PixiJS reels, cascade view, forge scene, animator, HUD, QA panel
 src/ui/art/            the artwork: palette, metal helpers, both symbol sets, reel bed
 src/audio/             sound synthesis, the recipes for every sound, and the Web Audio player
 test/                  Vitest suite
@@ -146,5 +165,5 @@ All rights reserved. The source is public to read and evaluate, not to reuse. Se
 2. ~~Playable UI with PixiJS reels and a play-money wallet~~
 3. ~~Second machine: cascade engine, heat multiplier, furnace feature~~
 4. ~~Sound~~ (built; waiting on a listen)
-5. A way to earn credits (a mini-game)
+5. ~~A way to earn credits: the Forge, behind a lobby~~
 6. Deploy to GitHub Pages

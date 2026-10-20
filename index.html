@@ -4,71 +4,147 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark" />
-    <meta name="description" content="Spinwright: a play-money slot machine with a tested math engine. No real money." />
+    <meta name="description" content="Spinwright: play-money slot machines with a tested math engine, and a forge to earn the credits. No real money." />
     <title>Spinwright</title>
   </head>
-  <body data-state="loading">
-    <main class="machine">
-      <div class="cabinet">
-        <header class="nameplate">
-          <h1>Spinwright</h1>
-          <nav class="machines" id="machines" aria-label="Machines"></nav>
-          <p class="stamp">Play money</p>
-        </header>
+  <body data-view="lobby" data-state="loading">
+    <header class="topbar">
+      <a class="brand" href="#/">Spinwright</a>
+      <nav class="topnav" id="topnav" aria-label="Games"></nav>
+      <div class="topbar-tools">
+        <output class="chip" aria-label="Your credits"><span class="chip-label">Credits</span> <span id="top-balance-value">0</span></output>
+        <label class="switch inline">
+          <input id="sound" type="checkbox" checked />
+          <span class="track"><span class="thumb"></span></span>
+          <span class="switch-label">Sound</span>
+        </label>
+        <input id="volume" class="volume" type="range" min="0" max="100" step="5" value="60" aria-label="Volume" />
+      </div>
+    </header>
 
-        <section class="stage" id="stage" aria-label="Reels"></section>
+    <p id="fatal" class="readout fatal" role="alert" hidden></p>
 
-        <p id="message" class="readout" role="status" aria-live="polite">Loading…</p>
+    <main>
+      <!-- The lobby -->
+      <section id="view-lobby" class="view lobby" aria-labelledby="lobby-title">
+        <h1 id="lobby-title" tabindex="-1">Spinwright</h1>
+        <p class="lede">
+          A workshop of play-money games. The slot machines run on a tested math engine, and the Forge earns the credits to play them.
+          No real money, no accounts.
+        </p>
+        <ul class="cards" id="lobby-cards"></ul>
+        <ul class="assurances" aria-label="How it works">
+          <li><strong>Real randomness.</strong> Every spin and every ingot is drawn from your browser's cryptographic random source.</li>
+          <li><strong>Maths you can check.</strong> Each machine's return is worked out exactly or measured by simulation, and the tests check the code against both.</li>
+          <li><strong>Play money.</strong> Credits are kept in your browser. When they run low, the Forge earns more.</li>
+        </ul>
+      </section>
 
-        <section class="deck" aria-label="Controls">
-          <div class="window">
-            <span class="label">Balance</span>
-            <output id="balance" class="value">0</output>
-          </div>
+      <!-- A slot machine -->
+      <section id="view-machine" class="view machine" aria-labelledby="machine-title" hidden>
+        <div class="cabinet">
+          <header class="nameplate">
+            <h1 id="machine-title" tabindex="-1">Machine</h1>
+            <span id="machine-number" class="machine-no"></span>
+            <p class="stamp">Play money</p>
+          </header>
 
-          <div class="window bet">
-            <span class="label" id="bet-label">Bet</span>
-            <div class="stepper" role="group" aria-labelledby="bet-label">
-              <button id="bet-down" class="knob" type="button" aria-label="Lower bet">−</button>
-              <output id="total-bet" class="value">20</output>
-              <button id="bet-up" class="knob" type="button" aria-label="Raise bet">+</button>
+          <section class="stage" id="stage" aria-label="Reels"></section>
+
+          <p id="message" class="readout" role="status" aria-live="polite">Loading…</p>
+
+          <section class="deck" aria-label="Controls">
+            <div class="window">
+              <span class="label">Balance</span>
+              <output id="balance" class="value">0</output>
             </div>
-            <span id="bet-detail" class="sub"></span>
-          </div>
 
-          <div class="window">
-            <span class="label">Win</span>
-            <output id="win" class="value win">0</output>
-          </div>
+            <div class="window bet">
+              <span class="label" id="bet-label">Bet</span>
+              <div class="stepper" role="group" aria-labelledby="bet-label">
+                <button id="bet-down" class="knob" type="button" aria-label="Lower bet">−</button>
+                <output id="total-bet" class="value">20</output>
+                <button id="bet-up" class="knob" type="button" aria-label="Raise bet">+</button>
+              </div>
+              <span id="bet-detail" class="sub"></span>
+            </div>
 
-          <button id="spin" class="spin" type="button" disabled data-spinning="false">SPIN</button>
+            <div class="window">
+              <span class="label">Win</span>
+              <output id="win" class="value win">0</output>
+            </div>
 
-          <div class="switches">
-            <label class="switch">
-              <input id="turbo" type="checkbox" />
-              <span class="track"><span class="thumb"></span></span>
-              <span class="switch-label">Turbo</span>
-            </label>
-            <label class="switch">
-              <input id="sound" type="checkbox" checked />
-              <span class="track"><span class="thumb"></span></span>
-              <span class="switch-label">Sound</span>
-            </label>
-            <input id="volume" class="volume" type="range" min="0" max="100" step="5" value="60" aria-label="Volume" />
-          </div>
-        </section>
-      </div>
+            <button id="spin" class="spin" type="button" disabled data-spinning="false">SPIN</button>
 
-      <div id="broke" class="broke" hidden>
-        <p>Out of credits. They're play money, so here are some more.</p>
-        <button id="refill" type="button">Get free credits</button>
-      </div>
+            <div class="switches">
+              <label class="switch">
+                <input id="turbo" type="checkbox" />
+                <span class="track"><span class="thumb"></span></span>
+                <span class="switch-label">Turbo</span>
+              </label>
+            </div>
+          </section>
+        </div>
 
-      <footer class="footer">
-        <p>Play money only. No real-money gambling, no payments, no accounts.</p>
-        <p>Built with <span id="built-with"></span>.</p>
-      </footer>
+        <div id="broke" class="broke" hidden>
+          <p>Out of credits. The Forge earns more, and it is free.</p>
+          <a class="brass-button" href="#/forge">Go to the Forge</a>
+        </div>
+      </section>
+
+      <!-- The Forge -->
+      <section id="view-forge" class="view forge-view" aria-labelledby="forge-title" hidden>
+        <div class="cabinet">
+          <header class="nameplate">
+            <h1 id="forge-title" tabindex="-1">The Forge</h1>
+            <p class="stamp">Earns credits</p>
+          </header>
+
+          <section class="stage" id="forge-stage" aria-label="The forge"></section>
+
+          <p id="forge-message" class="readout" role="status" aria-live="polite">Loading…</p>
+
+          <section class="deck forge-deck" aria-label="Forge readouts and controls">
+            <div class="window">
+              <span class="label">Credits</span>
+              <!-- These change many times a second while striking; <output> is a live region by default, so announcing them is switched off. -->
+              <output id="forge-credits" class="value" aria-live="off">0</output>
+            </div>
+
+            <div class="window">
+              <span class="label">Per strike</span>
+              <output id="forge-value" class="value win" aria-live="off">1</output>
+              <span id="forge-value-detail" class="sub"></span>
+            </div>
+
+            <div class="window">
+              <span class="label">Heat · <span id="forge-tier">Cold</span></span>
+              <div class="meter" id="forge-heat-meter" aria-hidden="true"><div class="meter-fill" id="forge-heat-fill"></div></div>
+              <span id="forge-heat-detail" class="sub"></span>
+            </div>
+
+            <div class="window">
+              <span class="label">Mainspring · <span id="forge-spring-state">Not fitted</span></span>
+              <div class="meter" aria-hidden="true"><div class="meter-fill spring" id="forge-spring-fill"></div></div>
+              <span id="forge-spring-detail" class="sub"></span>
+            </div>
+
+            <button id="forge-strike" class="spin strike" type="button">STRIKE</button>
+          </section>
+
+          <button id="forge-ingot" class="brass-button ingot-button" type="button" hidden>Grab the ingot</button>
+        </div>
+
+        <section class="upgrades" id="forge-upgrades" aria-label="Upgrades"></section>
+        <p class="forge-stats" id="forge-stats"></p>
+      </section>
     </main>
+
+    <footer class="footer">
+      <p>Play money only. No real-money gambling, no payments, no accounts.</p>
+      <p>Built with <span id="built-with"></span>.</p>
+    </footer>
+
     <noscript><p class="readout">Spinwright needs JavaScript to run.</p></noscript>
     <script type="module" src="/src/main.ts"></script>
   </body>

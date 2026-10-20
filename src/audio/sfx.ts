@@ -24,6 +24,13 @@ export const SFX_NAMES = [
   "featureStart",
   "retrigger",
   "furnaceLoop",
+  // The Forge
+  "anvil",
+  "autoStrike",
+  "upgrade",
+  "denied",
+  "ingotAppear",
+  "frenzy",
 ] as const;
 
 export type SfxName = (typeof SFX_NAMES)[number];
@@ -97,6 +104,13 @@ export function heatSemitones(heat: number): number {
   const index = Math.max(0, Math.floor(heat) - 1);
   const semitones = PENTATONIC[index % PENTATONIC.length]! + 12 * Math.floor(index / PENTATONIC.length);
   return Math.min(HEAT_TOP_SEMITONES, semitones);
+}
+
+const STRIKE_SEMITONES = [0, 2, 4, 7] as const;
+
+/** How many semitones higher the anvil rings at a heat tier: hotter strikes sound brighter. */
+export function strikeSemitones(tier: number): number {
+  return STRIKE_SEMITONES[Math.min(Math.max(0, Math.floor(tier)), STRIKE_SEMITONES.length - 1)]!;
 }
 
 /** Stereo position for item `index` of `count` laid out left to right, kept short of the extremes. */

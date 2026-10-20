@@ -1,3 +1,4 @@
+import { SLOT_ENTRIES } from "../app/catalog.ts";
 import type { Machine } from "../app/machine.ts";
 import { classic } from "../games/classic.ts";
 import { crucible } from "../games/crucible.ts";
@@ -11,8 +12,14 @@ export interface MachineEntry {
   create(): Machine;
 }
 
-/** Every machine on the floor, in order. The first one is what a new visitor sees. */
-export const MACHINES: readonly MachineEntry[] = [
-  { id: classic.id, number: 1, name: "Clockwork", create: () => new ClockworkMachine(classic) },
-  { id: crucible.id, number: 2, name: "Crucible", create: () => new CrucibleMachine(crucible) },
-];
+const FACTORIES: Readonly<Record<string, () => Machine>> = {
+  [classic.id]: () => new ClockworkMachine(classic),
+  [crucible.id]: () => new CrucibleMachine(crucible),
+};
+
+/** Every machine on the floor, in the catalog's order, which is also the order of the lobby and the menu. */
+export const MACHINES: readonly MachineEntry[] = SLOT_ENTRIES.map((entry) => {
+  const create = FACTORIES[entry.id];
+  if (create === undefined || entry.number === null) throw new Error(`The catalog lists machine "${entry.id}" but nothing builds it`);
+  return { id: entry.id, number: entry.number, name: entry.name, create };
+});

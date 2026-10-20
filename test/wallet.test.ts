@@ -56,11 +56,35 @@ describe("Wallet", () => {
     expect(new Wallet(store, KEY, 777).balance).toBe(777);
   });
 
-  it("resets to the starting balance", () => {
-    const wallet = new Wallet(memoryStore(), KEY, 1_000);
-    wallet.settle(1_000, 0);
-    wallet.reset();
-    expect(wallet.balance).toBe(1_000);
+  it("adds earned credits and saves them", () => {
+    const store = memoryStore();
+    const wallet = new Wallet(store, KEY, 1_000);
+    wallet.earn(250);
+    expect(wallet.balance).toBe(1_250);
+    expect(new Wallet(store, KEY, 1_000).balance).toBe(1_250);
+  });
+
+  it("spends credits, down to exactly zero, and refuses to go below", () => {
+    const wallet = new Wallet(memoryStore(), KEY, 100);
+    wallet.spend(60);
+    expect(wallet.balance).toBe(40);
+    expect(() => wallet.spend(41)).toThrow(RangeError);
+    expect(wallet.balance).toBe(40);
+    wallet.spend(40);
+    expect(wallet.balance).toBe(0);
+  });
+
+  it.each([-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])("rejects earning or spending %s", (amount) => {
+    const wallet = new Wallet(memoryStore(), KEY, 100);
+    expect(() => wallet.earn(amount)).toThrow(RangeError);
+    expect(() => wallet.spend(amount)).toThrow(RangeError);
+    expect(wallet.balance).toBe(100);
+  });
+
+  it("refuses to earn past what a whole number can hold exactly", () => {
+    const wallet = new Wallet(memoryStore(), KEY, Number.MAX_SAFE_INTEGER - 1);
+    expect(() => wallet.earn(5)).toThrow(RangeError);
+    expect(wallet.balance).toBe(Number.MAX_SAFE_INTEGER - 1);
   });
 
   it("tells listeners about changes until they unsubscribe", () => {
@@ -68,17 +92,18 @@ describe("Wallet", () => {
     const seen: number[] = [];
     const unsubscribe = wallet.onChange((balance) => seen.push(balance));
     wallet.settle(10, 0);
+    wallet.earn(5);
+    wallet.spend(3);
     unsubscribe();
     wallet.settle(10, 0);
-    expect(seen).toEqual([990]);
+    expect(seen).toEqual([990, 995, 992]);
   });
 });
 
 describe("prefs", () => {
   const LEVELS = [1, 2, 5];
-  const MACHINES = ["one", "two"];
-  const DEFAULTS = { unitBet: 2, turbo: false, sound: true, volume: 0.6, machine: "one" };
-  const load = (store: ReturnType<typeof memoryStore>) => loadPrefs(store, "p", LEVELS, MACHINES, DEFAULTS);
+  const DEFAULTS = { unitBet: 2, turbo: false, sound: true, volume: 0.6 };
+  const load = (store: ReturnType<typeof memoryStore>) => loadPrefs(store, "p", LEVELS, DEFAULTS);
 
   it("returns the defaults when nothing is saved", () => {
     expect(load(memoryStore())).toEqual(DEFAULTS);
@@ -86,21 +111,21 @@ describe("prefs", () => {
 
   it("round-trips saved preferences", () => {
     const store = memoryStore();
-    const saved = { unitBet: 5, turbo: true, sound: false, volume: 0.25, machine: "two" };
+    const saved = { unitBet: 5, turbo: true, sound: false, volume: 0.25 };
     savePrefs(store, "p", saved);
     expect(load(store)).toEqual(saved);
   });
 
   it("drops a saved bet that is no longer an allowed level", () => {
     const store = memoryStore();
-    savePrefs(store, "p", { ...DEFAULTS, unitBet: 3, turbo: true, machine: "two" });
-    expect(load(store)).toEqual({ ...DEFAULTS, unitBet: 2, turbo: true, machine: "two" });
+    savePrefs(store, "p", { ...DEFAULTS, unitBet: 3, turbo: true });
+    expect(load(store)).toEqual({ ...DEFAULTS, unitBet: 2, turbo: true });
   });
 
-  it("drops a saved machine that no longer exists", () => {
+  it("ignores a machine saved by an earlier version", () => {
     const store = memoryStore();
-    savePrefs(store, "p", { ...DEFAULTS, unitBet: 5, machine: "retired" });
-    expect(load(store)).toEqual({ ...DEFAULTS, unitBet: 5, machine: "one" });
+    store.setItem("p", JSON.stringify({ ...DEFAULTS, unitBet: 5, machine: "classic" }));
+    expect(load(store)).toEqual({ ...DEFAULTS, unitBet: 5 });
   });
 
   it.each([-0.1, 1.5, Number.NaN])("drops a saved volume of %s", (volume) => {

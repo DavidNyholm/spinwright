@@ -1,10 +1,11 @@
 {
   // The engine must stay free of browser APIs so it can run in Node (simulator, tests) and, later, on a server.
-  // This config checks src/engine and src/games with no DOM lib; `npm run typecheck` runs it alongside the main one.
+  // This config checks src/engine, src/games and the Forge's rules (src/forge) with no DOM lib, plus the pure
+  // routing and catalog; `npm run typecheck` runs it alongside the main one.
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "lib": ["ES2023"],
     "types": ["node"]
   },
-  "include": ["src/engine", "src/games"]
+  "include": ["src/engine", "src/games", "src/forge", "src/app/router.ts", "src/app/catalog.ts"]
 }

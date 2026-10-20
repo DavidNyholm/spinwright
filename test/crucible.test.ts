@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { CRUCIBLE_RTP_PERCENT } from "../src/app/catalog.ts";
 import { playCascade, playFeatureSession, triggerProbability } from "../src/engine/cascade/index.ts";
 import { createRng } from "../src/engine/index.ts";
 import { crucible } from "../src/games/crucible.ts";
@@ -33,6 +34,8 @@ describe("Crucible", () => {
     const rtp = base / plays / totalBet + (triggerProbability(crucible) * feature) / sessions / totalBet;
     expect(rtp).toBeGreaterThan(0.935);
     expect(rtp).toBeLessThan(0.975);
+    // The lobby quotes a return for this machine; it must stay close to what the machine really does.
+    expect(Math.abs(rtp * 100 - CRUCIBLE_RTP_PERCENT)).toBeLessThan(1);
     expect(hits / plays).toBeGreaterThan(0.55);
     expect(hits / plays).toBeLessThan(0.7);
   });

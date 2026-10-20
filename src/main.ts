@@ -4,24 +4,27 @@ import "@fontsource/big-shoulders-display/latin-800";
 import "@fontsource/ibm-plex-mono/latin-500";
 import "@fontsource/ibm-plex-mono/latin-600";
 import "./style.css";
-import type { Ticker } from "pixi.js";
 import { BUILT_WITH } from "./app/about.ts";
-import { SoundPlayer } from "./audio/player.ts";
-import type { Machine, RoundHooks } from "./app/machine.ts";
-import { loadPrefs, savePrefs } from "./app/prefs.ts";
+import { CATALOG } from "./app/catalog.ts";
+import { loadPrefs } from "./app/prefs.ts";
+import { LOBBY, parseRoute, routeToHash, sameRoute } from "./app/router.ts";
+import type { Route } from "./app/router.ts";
 import { SETTINGS } from "./app/settings.ts";
 import { browserStore } from "./app/storage.ts";
 import { Wallet } from "./app/wallet.ts";
-import { winCountDuration } from "./app/winCount.ts";
+import { SoundPlayer } from "./audio/player.ts";
 import { createCryptoRng, createRng, randomSeed } from "./engine/index.ts";
 import { MACHINES } from "./machines/index.ts";
-import { createDebugPanel } from "./ui/debugPanel.ts";
-import type { DebugPanel } from "./ui/debugPanel.ts";
-import { formatCredits, Hud } from "./ui/hud.ts";
+import { ForgePage } from "./pages/forgePage.ts";
+import { buildLobby } from "./pages/lobbyPage.ts";
+import { MachinePage } from "./pages/machinePage.ts";
+import { Topbar } from "./pages/topbar.ts";
+import { byId } from "./ui/dom.ts";
 
 /**
- * The page around the machines: wallet, bet, spin button and readouts. It knows nothing about how a
- * machine plays or looks; it asks the current machine to plan a round and to show it.
+ * The site around the games: the wallet and sound they share, the top bar, and the page for each
+ * route (lobby, a slot machine, the Forge). A page is only built when it is visited and torn down
+ * when the visitor leaves, so only one game is ever running.
  */
 async function main(): Promise<void> {
   const params = new URLSearchParams(location.search);
@@ -34,295 +37,134 @@ async function main(): Promise<void> {
 
   const store = browserStore();
   const wallet = new Wallet(store, SETTINGS.walletKey, SETTINGS.startingBalance);
-  const prefs = loadPrefs(
-    store,
-    SETTINGS.prefsKey,
-    SETTINGS.betLevels,
-    MACHINES.map((entry) => entry.id),
-    { unitBet: SETTINGS.defaultUnitBet, turbo: false, sound: true, volume: SETTINGS.defaultVolume, machine: MACHINES[0]!.id },
-  );
-  const levels = SETTINGS.betLevels;
+  const prefs = loadPrefs(store, SETTINGS.prefsKey, SETTINGS.betLevels, {
+    unitBet: SETTINGS.defaultUnitBet,
+    turbo: false,
+    sound: true,
+    volume: SETTINGS.defaultVolume,
+  });
 
   // Browsers only allow sound after the visitor has interacted with the page, so the player is
   // unlocked by the first click or key press; before that it is simply silent.
   const sfx = new SoundPlayer({ volume: prefs.volume, muted: !prefs.sound });
   for (const gesture of ["pointerdown", "keydown"] as const) document.addEventListener(gesture, () => sfx.unlock(), { capture: true });
 
-  let machine: Machine | null = null;
-  let debug: DebugPanel | null = null;
-  let busy = false;
-  let loading = true;
+  byId("built-with").textContent = `${BUILT_WITH.name} (${BUILT_WITH.modelId})`;
 
-  document.getElementById("built-with")!.textContent = `${BUILT_WITH.name} (${BUILT_WITH.modelId})`;
-  const host = document.getElementById("stage")!;
+  const topbar = new Topbar({ wallet, sfx, prefs, store });
+  buildLobby();
+  const machinePage = new MachinePage({ wallet, store, prefs, sfx, rng, seed, debugMode, reduceMotion });
+  const forgePage = new ForgePage({ wallet, store, sfx, rng, reduceMotion });
 
-  const hud = new Hud({
-    onSpin: () => handleSpin(),
-    onBetStep: (direction) => {
-      sfx.play(direction > 0 ? "betUp" : "betDown");
-      stepBet(direction);
-    },
-    onTurbo: (on) => {
-      sfx.play("tick");
-      prefs.turbo = on;
-      savePrefs(store, SETTINGS.prefsKey, prefs);
-    },
-    onSound: (on) => {
-      prefs.sound = on;
-      savePrefs(store, SETTINGS.prefsKey, prefs);
-      sfx.setMuted(!on);
-      // Switching sound on plays a tick, so it is clear it worked.
-      if (on) sfx.play("tick");
-    },
-    onVolume: (volume) => {
-      prefs.volume = volume;
-      savePrefs(store, SETTINGS.prefsKey, prefs);
-      sfx.setVolume(volume);
-      sfx.play("tick");
-    },
-    onWinTick: () => sfx.play("coin", { gain: 0.8 }),
-    onRefill: () => {
-      sfx.play("winSmall");
-      wallet.reset();
-      hud.setBalance(wallet.balance);
-      refreshBroke();
-      hud.setMessage("Credits topped up. Good luck!");
-    },
-  });
-  hud.setSound(prefs.sound, prefs.volume);
-  hud.setMessage("Loading…");
+  // --- routes ---------------------------------------------------------------------------------
 
-  const hooks: RoundHooks = {
-    setWin: (total, animateMs = 0) => hud.setWin(total, animateMs),
-    setMessage: (text) => hud.setMessage(text),
-  };
+  const machineIds = MACHINES.map((entry) => entry.id);
+  const views = { lobby: byId("view-lobby"), machine: byId("view-machine"), forge: byId("view-forge") } as const;
+  const headings = { lobby: byId("lobby-title"), machine: byId("machine-title"), forge: byId("forge-title") } as const;
 
-  // --- the machine switcher ---------------------------------------------------------------
+  let current: Route | null = null;
+  /** The page being shown, so QA can wait for a navigation to finish. */
+  let arriving: Promise<void> = Promise.resolve();
 
-  const nav = document.getElementById("machines")!;
-  const tabs = MACHINES.map((entry) => {
-    const tab = document.createElement("button");
-    tab.type = "button";
-    tab.className = "machine-tab";
-    tab.dataset["machine"] = entry.id;
-    const number = document.createElement("span");
-    number.className = "no";
-    number.textContent = `No. ${entry.number}`;
-    tab.append(number, ` ${entry.name}`);
-    tab.addEventListener("click", () => void switchTo(entry.id));
-    nav.append(tab);
-    return tab;
-  });
-
-  function refreshTabs(): void {
-    for (const tab of tabs) {
-      tab.setAttribute("aria-pressed", String(tab.dataset["machine"] === prefs.machine));
-      tab.disabled = busy || loading;
-    }
+  function titleFor(route: Route): string {
+    const entry = route.page === "lobby" ? null : CATALOG.find((candidate) => sameRoute(candidate.route, route));
+    return entry === null || entry === undefined ? "Spinwright" : `${entry.name} · Spinwright`;
   }
 
-  async function switchTo(id: string): Promise<void> {
-    if (busy || loading || id === prefs.machine) return;
-    prefs.machine = id;
-    savePrefs(store, SETTINGS.prefsKey, prefs);
-    await loadMachine(id);
+  async function show(route: Route): Promise<void> {
+    if (current !== null && sameRoute(current, route)) return;
+    const previous = current;
+    current = route;
+    if (previous?.page === "machine") machinePage.leave();
+    if (previous?.page === "forge") forgePage.leave();
+
+    for (const [page, view] of Object.entries(views)) view.hidden = page !== route.page;
+    document.body.dataset["view"] = route.page;
+    document.title = titleFor(route);
+    topbar.setRoute(route);
+    window.scrollTo(0, 0);
+    // Move focus to the new page's heading, so keyboard and screen-reader users start at its top.
+    headings[route.page].focus({ preventScroll: true });
+
+    if (route.page === "machine") await machinePage.enter(route.machine);
+    else if (route.page === "forge") await forgePage.enter();
   }
 
-  async function loadMachine(id: string): Promise<void> {
-    loading = true;
-    document.body.dataset["state"] = "loading";
-    hud.setReady(false);
-    refreshTabs();
-    machine?.dispose();
-    debug?.dispose();
-    machine = null;
-    debug = null;
-    host.replaceChildren();
-
-    const entry = MACHINES.find((candidate) => candidate.id === id) ?? MACHINES[0]!;
-    const next = entry.create();
-    try {
-      // The artwork uses the display font; draw it only once the font is ready.
-      await document.fonts.load('800 48px "Big Shoulders Display"');
-      const size = await next.mount(host, { reduceMotion, sfx });
-      document.documentElement.style.setProperty("--aspect", String(size.width / size.height));
-    } catch (error) {
-      console.error(error);
-      hud.setMessage("Couldn't start the graphics engine. Try another browser, or enable hardware acceleration.");
-      loading = false;
-      refreshTabs();
-      return;
-    }
-
-    machine = next;
-    document.body.dataset["machine"] = entry.id;
-    debug = debugMode ? createDebugPanel({ seed, stopLimits: next.forcedStopLimits }) : null;
-    loading = false;
-    refreshBet();
-    refreshBroke();
-    hud.setBalance(wallet.balance);
-    hud.setWin(0);
-    hud.setMessage(next.idleMessage);
-    hud.setReady(true);
-    refreshTabs();
-    document.body.dataset["state"] = "idle";
+  function followHash(): void {
+    arriving = show(parseRoute(location.hash, machineIds)).catch(fail);
   }
-
-  // --- bet and balance ----------------------------------------------------------------------
-
-  function refreshBet(): void {
-    if (machine === null) return;
-    const index = levels.indexOf(prefs.unitBet);
-    const { units, unitName } = machine;
-    hud.setBet(
-      prefs.unitBet * units,
-      `${formatCredits(prefs.unitBet)} per ${unitName} × ${units} ${unitName}s`,
-      index > 0,
-      index < levels.length - 1,
-    );
-  }
-
-  function refreshBroke(): void {
-    if (machine === null) return;
-    hud.setBroke(!wallet.canAfford(levels[0]! * machine.units));
-  }
-
-  function stepBet(direction: -1 | 1): void {
-    if (busy || machine === null) return;
-    const index = Math.min(levels.length - 1, Math.max(0, levels.indexOf(prefs.unitBet) + direction));
-    prefs.unitBet = levels[index]!;
-    savePrefs(store, SETTINGS.prefsKey, prefs);
-    refreshBet();
-  }
-
-  /** Called when the chosen bet is more than the balance: lower it to the best affordable one. */
-  function lowerBetToFit(units: number): void {
-    const best = levels.filter((level) => wallet.canAfford(level * units)).at(-1);
-    if (best === undefined) {
-      hud.setMessage("Out of credits.");
-      return;
-    }
-    prefs.unitBet = best;
-    savePrefs(store, SETTINGS.prefsKey, prefs);
-    refreshBet();
-    hud.setMessage(`Not enough credits for that bet. Lowered to ${formatCredits(best * units)}; press spin to play.`);
-  }
-
-  // --- a round ------------------------------------------------------------------------------
-
-  function handleSpin(): void {
-    if (machine === null || loading) return;
-    if (busy) {
-      machine.quickStop();
-      return;
-    }
-    void playRound(machine);
-  }
-
-  async function playRound(current: Machine): Promise<void> {
-    busy = true;
-    document.body.dataset["state"] = "spinning";
-    refreshTabs();
-    try {
-      hud.finishCounters();
-      current.clear();
-      const totalBet = prefs.unitBet * current.units;
-      if (!wallet.canAfford(totalBet)) {
-        lowerBetToFit(current.units);
-        return;
-      }
-
-      const planned = current.plan(prefs.unitBet, rng, debug?.forcedStops() ?? null);
-      // The outcome is final here: bank it now, and only reveal it as the machine plays it out.
-      wallet.settle(planned.totalBet, planned.totalWin);
-      hud.setBalance(wallet.balance - planned.totalWin);
-      hud.setWin(0);
-      hud.setMessage("Spinning…");
-      hud.setSpinning(true);
-      await planned.present(hooks, { turbo: prefs.turbo });
-
-      debug?.report(planned.summary);
-      if (hud.win !== planned.totalWin) hud.setWin(planned.totalWin);
-      hud.setBalance(wallet.balance, reduceMotion ? 0 : winCountDuration(planned.totalWin, planned.totalBet));
-    } catch (error) {
-      console.error(error);
-      hud.setBalance(wallet.balance);
-      hud.setMessage("Something went wrong. Your balance is safe; try again.");
-    } finally {
-      busy = false;
-      hud.setSpinning(false);
-      refreshBroke();
-      refreshTabs();
-      document.body.dataset["state"] = "idle";
-    }
-  }
+  window.addEventListener("hashchange", followHash);
 
   // --- QA -----------------------------------------------------------------------------------
 
   if (debugMode) {
-    const qaState = (): Record<string, unknown> => machine?.qa() ?? {};
+    const machine = (): Record<string, unknown> => machinePage.qa();
+    /** Goes to a hash such as "#/play/crucible" and resolves once that page has finished loading. */
+    const go = async (hash: string): Promise<void> => {
+      location.hash = hash;
+      // The hashchange event arrives on a later task; let it, then wait for the page it started.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await arriving;
+    };
     Object.assign(window, {
       spinwright: {
         seed,
         wallet,
+        get route() {
+          return current === null ? routeToHash(LOBBY) : routeToHash(current);
+        },
+        go,
+        switchTo: (id: string) => go(`#/play/${id}`),
         get game() {
-          return qaState()["game"];
+          return machine()["game"];
         },
         get lastResult() {
-          return qaState()["lastResult"];
+          return machine()["lastResult"];
         },
         get planned() {
-          return qaState()["planned"];
+          return machine()["planned"];
         },
         get ticker() {
-          return qaState()["ticker"];
+          return machine()["ticker"];
         },
-        shownGrid: () => (qaState()["shownGrid"] as () => unknown)(),
-        readouts: () => (qaState()["readouts"] as () => unknown)(),
-        worstOverlap: () => (qaState()["worstOverlap"] as () => number)(),
-        pieceStates: () => (qaState()["pieceStates"] as () => { x: number; y: number; scale: number; alpha: number; symbol: string }[])(),
-        finishCounters: () => hud.finishCounters(),
-        switchTo,
+        shownGrid: () => (machine()["shownGrid"] as () => unknown)(),
+        readouts: () => (machine()["readouts"] as () => unknown)(),
+        worstOverlap: () => (machine()["worstOverlap"] as () => number)(),
+        pieceStates: () => (machine()["pieceStates"] as () => unknown)(),
+        finishCounters: () => (machine()["finishCounters"] as () => void)(),
+        /** The Forge's engine, state and a hand-cranked clock. Only meaningful while the Forge is open. */
+        get forge() {
+          return forgePage.qa();
+        },
         sound: {
           /** How many times each sound was asked for, heard or not. */
           requests: sfx.requests,
           state: () => sfx.state,
         },
-        /**
-         * Steps the real animation by hand, at 60 fps of simulated time, until the round is over. It
-         * does not depend on the browser's frame rate, so QA scripts stay fast and repeatable even in
-         * a throttled background tab. Returns the simulated milliseconds it took.
-         */
+        /** Plays the current machine's round out by hand; see MachinePage.qa. Sounds are held back meanwhile. */
         async settle(maxMs = 10_000): Promise<number> {
-          const ticker = qaState()["ticker"] as Ticker;
-          const frameMs = 1000 / 60;
-          let simulated = 0;
-          ticker.stop();
-          // The animation runs faster than real time here, so its sounds would pile up; hold them back.
           sfx.setSuspended(true);
           try {
-            let time = ticker.lastTime;
-            while (document.body.dataset["state"] !== "idle" && simulated < maxMs) {
-              time += frameMs;
-              simulated += frameMs;
-              ticker.update(time);
-              // Let the promise chains this frame set free run before the next frame.
-              for (let i = 0; i < 12; i++) await Promise.resolve();
-            }
+            return await (machine()["settle"] as (maxMs: number) => Promise<number>)(maxMs);
           } finally {
             sfx.setSuspended(false);
-            ticker.start();
           }
-          return simulated;
         },
       },
     });
   }
 
-  await loadMachine(prefs.machine);
+  followHash();
+  await arriving;
 }
 
-main().catch((error: unknown) => {
+/** Last resort: say so on the page, in words, instead of leaving it blank. */
+function fail(error: unknown): void {
   console.error(error);
-  document.getElementById("message")!.textContent = "Something went wrong while loading the game.";
-});
+  const notice = document.getElementById("fatal");
+  if (notice === null) return;
+  notice.textContent = "Something went wrong while loading the game. Reloading the page may help.";
+  notice.hidden = false;
+}
+
+main().catch(fail);

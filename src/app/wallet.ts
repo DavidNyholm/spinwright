@@ -14,13 +14,11 @@ export class Wallet {
   #balance: number;
   readonly #store: KeyValueStore;
   readonly #key: string;
-  readonly #startingBalance: number;
   readonly #listeners = new Set<Listener>();
 
   constructor(store: KeyValueStore, key: string, startingBalance: number) {
     this.#store = store;
     this.#key = key;
-    this.#startingBalance = startingBalance;
     this.#balance = readJson(store, key, parseBalance) ?? startingBalance;
   }
 
@@ -43,9 +41,18 @@ export class Wallet {
     this.#set(this.#balance - bet + win);
   }
 
-  /** Back to the starting balance (stand-in until credits can be earned another way). */
-  reset(): void {
-    this.#set(this.#startingBalance);
+  /** Adds credits earned outside the machines, such as at the Forge. */
+  earn(amount: number): void {
+    if (!Number.isSafeInteger(amount) || amount < 0) throw new RangeError(`amount must be a non-negative integer, got ${amount}`);
+    if (!Number.isSafeInteger(this.#balance + amount)) throw new RangeError("balance would be too large to keep exactly");
+    this.#set(this.#balance + amount);
+  }
+
+  /** Takes credits for something other than a bet, such as a Forge upgrade. Throws if there are not enough. */
+  spend(amount: number): void {
+    if (!Number.isSafeInteger(amount) || amount < 0) throw new RangeError(`amount must be a non-negative integer, got ${amount}`);
+    if (amount > this.#balance) throw new RangeError(`cannot spend ${amount}, balance is ${this.#balance}`);
+    this.#set(this.#balance - amount);
   }
 
   onChange(listener: Listener): () => void {

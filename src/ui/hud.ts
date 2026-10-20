@@ -1,11 +1,7 @@
+import { byId } from "./dom.ts";
+
 const numberFormat = new Intl.NumberFormat("en-US");
 export const formatCredits = (credits: number): string => numberFormat.format(credits);
-
-function byId<T extends HTMLElement>(id: string): T {
-  const element = document.getElementById(id);
-  if (element === null) throw new Error(`Missing #${id} in index.html`);
-  return element as T;
-}
 
 /** While a counter rolls up it calls its tick callback at most this often, which is the pace of the coin sound. */
 const TICK_INTERVAL_MS = 55;
@@ -73,12 +69,10 @@ export interface HudHandlers {
   onSpin(): void;
   onBetStep(direction: -1 | 1): void;
   onTurbo(on: boolean): void;
-  onSound(on: boolean): void;
-  /** 0 to 1. */
-  onVolume(volume: number): void;
-  onRefill(): void;
   /** Called as the win counter rolls up, at the pace of a coin sound. */
   onWinTick?(): void;
+  /** Whether the machine page is the one on screen; Space and Enter only spin then. */
+  isActive(): boolean;
 }
 
 /** The controls and readouts around the reels. Holds no game logic. */
@@ -92,8 +86,6 @@ export class Hud {
   readonly #betDown = byId<HTMLButtonElement>("bet-down");
   readonly #betUp = byId<HTMLButtonElement>("bet-up");
   readonly #turbo = byId<HTMLInputElement>("turbo");
-  readonly #sound = byId<HTMLInputElement>("sound");
-  readonly #volume = byId<HTMLInputElement>("volume");
   readonly #broke = byId("broke");
   readonly #state = { ready: false, spinning: false, broke: false, canDecrease: false, canIncrease: false };
 
@@ -104,16 +96,10 @@ export class Hud {
     this.#betDown.addEventListener("click", () => handlers.onBetStep(-1));
     this.#betUp.addEventListener("click", () => handlers.onBetStep(1));
     this.#turbo.addEventListener("change", () => handlers.onTurbo(this.#turbo.checked));
-    this.#sound.addEventListener("change", () => {
-      this.#volume.disabled = !this.#sound.checked;
-      handlers.onSound(this.#sound.checked);
-    });
-    this.#volume.addEventListener("input", () => handlers.onVolume(Number(this.#volume.value) / 100));
-    byId("refill").addEventListener("click", () => handlers.onRefill());
 
     // Space or Enter spins, unless a control has focus (it would also fire that control's own click).
     document.addEventListener("keydown", (event) => {
-      if (event.repeat || (event.code !== "Space" && event.code !== "Enter")) return;
+      if (!handlers.isActive() || event.repeat || (event.code !== "Space" && event.code !== "Enter")) return;
       const target = event.target;
       if (target instanceof HTMLElement && target.closest("button, input, select, textarea, a")) return;
       event.preventDefault();
@@ -165,7 +151,7 @@ export class Hud {
     this.#apply();
   }
 
-  /** Out of credits: hides nothing, but offers a refill and blocks spinning. */
+  /** Out of credits: blocks spinning and points the player to the Forge. */
   setBroke(broke: boolean): void {
     this.#state.broke = broke;
     this.#apply();
@@ -173,12 +159,6 @@ export class Hud {
 
   setTurbo(on: boolean): void {
     this.#turbo.checked = on;
-  }
-
-  setSound(on: boolean, volume: number): void {
-    this.#sound.checked = on;
-    this.#volume.value = String(Math.round(volume * 100));
-    this.#volume.disabled = !on;
   }
 
   setMessage(text: string): void {

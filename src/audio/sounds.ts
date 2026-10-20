@@ -230,6 +230,79 @@ const RECIPES: Readonly<Record<SfxName, () => Samples>> = {
 
   retrigger: () => finish(arpeggio([91, 95, 98, 103], 0.07, 0.6, 0.3), 0.65, 0.08),
 
+  // --- the Forge -------------------------------------------------------------------------
+
+  anvil: () => {
+    // A hammer on iron: a short low thump for the weight, then a ring of inharmonic partials (which is
+    // what makes metal sound like metal and not a bell), a sharp click for the contact, and a hiss of sparks.
+    const out = silence(0.5);
+    mixInto(out, tone({ seconds: 0.14, from: 150, to: 70, decay: 0.03, attack: 0.0008 }), 0, 0.9);
+    for (const [ratio, level, decay] of [
+      [1, 1, 0.14],
+      [2.32, 0.7, 0.1],
+      [4.25, 0.5, 0.065],
+      [6.63, 0.35, 0.045],
+      [9.38, 0.2, 0.03],
+    ] as const) {
+      mixInto(out, tone({ seconds: 0.45, from: 540 * ratio, decay, attack: 0.0006 }), 0, level * 0.5);
+    }
+    mixInto(out, noiseBurst({ seconds: 0.015, seed: "anvil-click", decay: 0.0015, highpass: 3500 }), 0, 0.8);
+    mixInto(out, noiseBurst({ seconds: 0.12, seed: "anvil-sparks", decay: 0.025, highpass: 5000 }), 0.004, 0.25);
+    softClip(out, 1.3);
+    return finish(out, 0.7, 0.05);
+  },
+
+  autoStrike: () => {
+    // The mainspring's little hammer: lighter, higher and shorter than the player's.
+    const out = silence(0.3);
+    for (const [ratio, level, decay] of [
+      [1, 1, 0.07],
+      [2.76, 0.5, 0.045],
+      [5.4, 0.25, 0.03],
+    ] as const) {
+      mixInto(out, tone({ seconds: 0.28, from: 1400 * ratio, decay, attack: 0.0006 }), 0, level * 0.6);
+    }
+    mixInto(out, noiseBurst({ seconds: 0.01, seed: "autoStrike", decay: 0.0012, highpass: 4000 }), 0, 0.5);
+    mixInto(out, tone({ seconds: 0.05, from: 300, to: 180, decay: 0.012 }), 0, 0.35);
+    return finish(out, 0.4, 0.03);
+  },
+
+  upgrade: () => {
+    // Gears clicking home, then a chime.
+    const out = silence(0.8);
+    for (let k = 0; k < 4; k++) mixInto(out, noiseBurst({ seconds: 0.02, seed: `upgrade-${k}`, decay: 0.003, highpass: 1500 }), k * 0.04, 0.6);
+    [79, 83, 86].forEach((note, index) => mixInto(out, bell(midi(note), 0.6, 0.22), 0.17 + index * 0.07, 0.8));
+    return finish(out, 0.65, 0.08);
+  },
+
+  denied: () => {
+    // A dull thunk: nothing rings, so it cannot be mistaken for a reward.
+    const out = silence(0.22);
+    mixInto(out, tone({ seconds: 0.2, from: 110, to: 65, decay: 0.05 }), 0, 1);
+    mixInto(out, noiseBurst({ seconds: 0.03, seed: "denied", decay: 0.012, lowpass: 700 }), 0, 0.6);
+    return finish(out, 0.5, 0.03);
+  },
+
+  ingotAppear: () => {
+    // Light catching gold: a few high bells, one after another.
+    const out = silence(0.9);
+    [
+      [96, 0, 0.6],
+      [100, 0.09, 0.5],
+      [103, 0.18, 0.45],
+      [108, 0.3, 0.4],
+      [112, 0.45, 0.35],
+    ].forEach(([note, at, gain]) => mixInto(out, bell(midi(note!), 0.5, 0.15, 0.7), at!, gain!));
+    return finish(out, 0.45, 0.08);
+  },
+
+  frenzy: () => {
+    const out = silence(1.2);
+    mixInto(out, noiseSweep({ seconds: 0.9, seed: "frenzy", fromHz: 400, toHz: 4200, q: 1.4, envelope: (p) => p ** 1.5 }), 0, 0.7);
+    [84, 88, 91, 96].forEach((note, index) => mixInto(out, bell(midi(note), 0.55, 0.25), 0.45 + index * 0.13, 0.7));
+    return finish(out, 0.8, 0.1);
+  },
+
   furnaceLoop: () => {
     // A low rumble: soft filtered noise breathing slowly, a deep hum, and a few crackles.
     const LOOP = 2;

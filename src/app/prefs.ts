@@ -9,8 +9,6 @@ export interface Prefs {
   sound: boolean;
   /** 0 to 1. */
   volume: number;
-  /** The machine last played; always one of the known machine ids. */
-  machine: string;
 }
 
 /** Loads saved preferences, falling back to `defaults` for anything missing or no longer valid. */
@@ -18,7 +16,6 @@ export function loadPrefs(
   store: KeyValueStore,
   key: string,
   levels: readonly number[],
-  machineIds: readonly string[],
   defaults: Prefs,
 ): Prefs {
   const saved = readJson(store, key, (value): Partial<Prefs> | null =>
@@ -30,7 +27,6 @@ export function loadPrefs(
     sound: typeof saved?.sound === "boolean" ? saved.sound : defaults.sound,
     volume:
       typeof saved?.volume === "number" && saved.volume >= 0 && saved.volume <= 1 ? saved.volume : defaults.volume,
-    machine: typeof saved?.machine === "string" && machineIds.includes(saved.machine) ? saved.machine : defaults.machine,
   };
 }
 

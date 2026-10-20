@@ -46,16 +46,132 @@ body::before {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
-.machine {
-  /* The stage is as wide as fits the window's height, so the whole machine can stay in view. */
-  --stage-w: min(940px, max(520px, calc((100vh - 380px) * var(--aspect, 1.9))));
+[hidden] {
+  display: none !important;
+}
+
+.view {
   position: relative;
-  width: min(100%, calc(var(--stage-w) + 48px + 2 * var(--gutter)));
   margin: 0 auto;
-  padding: 22px var(--gutter) 14px;
+  padding: 8px var(--gutter) 14px;
+}
+
+.machine,
+.forge-view {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.machine {
+  /* The stage is as wide as fits the window's height, so the whole machine can stay in view. */
+  --stage-w: min(940px, max(520px, calc((100vh - 380px) * var(--aspect, 1.9))));
+  width: min(100%, calc(var(--stage-w) + 48px + 2 * var(--gutter)));
+}
+
+.forge-view,
+.lobby {
+  width: min(100%, 1020px);
+}
+
+/* The bar across the top: way between games, credits, and the sound controls. */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 8px 22px;
+  width: min(100%, 1020px);
+  margin: 0 auto;
+  padding: 14px var(--gutter) 6px;
+}
+
+.brand {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 1.5rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--brass-light);
+  text-decoration: none;
+  text-shadow: 0 1px 0 #000, 0 -1px 0 rgba(255, 236, 190, 0.18);
+}
+
+.topnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* A destination: a small engraved plate, lit when it is the page you are on. */
+.topnav a {
+  padding: 3px 12px;
+  border: 1px solid var(--brass-dark);
+  border-radius: 4px;
+  color: var(--muted);
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.2em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.topnav a:hover {
+  color: var(--text);
+  border-color: var(--brass);
+}
+
+.topnav a[aria-current="page"] {
+  color: var(--amber-hot);
+  border-color: var(--amber-dim);
+  background: rgba(255, 179, 71, 0.08);
+  text-shadow: 0 0 10px rgba(255, 179, 71, 0.45);
+}
+
+.topbar-tools {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-left: auto;
+}
+
+.chip {
+  padding: 4px 12px;
+  background: linear-gradient(180deg, #050403, #0d0b09);
+  border-radius: 6px;
+  box-shadow: inset 0 2px 7px rgba(0, 0, 0, 0.95), 0 1px 0 rgba(255, 236, 190, 0.14);
+  color: var(--amber);
+  font-weight: 600;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 12px rgba(255, 179, 71, 0.4);
+}
+
+.chip-label {
+  margin-right: 0.4em;
+  color: var(--muted);
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  text-shadow: none;
+}
+
+/* Credits are shown on the lobby; the games have their own readouts, and a machine's must not be spoiled by this one. */
+body:not([data-view="lobby"]) .chip {
+  display: none;
+}
+
+h1:focus {
+  outline: none;
+}
+
+.fatal {
+  width: min(100% - 2 * var(--gutter), 1020px);
+  margin: 12px auto;
+  color: #fbe2d8;
+  background: linear-gradient(180deg, #2b1510, #1c0d0a);
+  border: 1px solid var(--rust);
 }
 
 /* The cabinet: iron plate with a brass rim and a rivet in each corner. */
@@ -95,45 +211,13 @@ body::before {
   text-shadow: 0 1px 0 #000, 0 -1px 0 rgba(255, 236, 190, 0.18);
 }
 
-.machines {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-/* A machine selector: a small engraved plate, lit when it is the one in play. */
-.machine-tab {
-  padding: 3px 12px;
-  background: transparent;
-  border: 1px solid var(--brass-dark);
-  border-radius: 4px;
-  color: var(--muted);
+.machine-no {
+  color: var(--amber-dim);
   font-family: var(--display);
   font-weight: 700;
-  font-size: 0.95rem;
+  font-size: 1rem;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-}
-
-.machine-tab .no {
-  margin-right: 0.3em;
-  color: var(--brass-dark);
-}
-
-.machine-tab[aria-pressed="true"] {
-  color: var(--amber-hot);
-  border-color: var(--amber-dim);
-  background: rgba(255, 179, 71, 0.08);
-  text-shadow: 0 0 10px rgba(255, 179, 71, 0.45);
-}
-
-.machine-tab[aria-pressed="true"] .no {
-  color: var(--amber-dim);
-}
-
-.machine-tab:not([aria-pressed="true"]):hover:not(:disabled) {
-  color: var(--text);
-  border-color: var(--brass);
 }
 
 .stamp {
@@ -314,9 +398,7 @@ button:focus-visible,
 }
 
 .volume {
-  grid-column: 1 / -1;
-  width: 100%;
-  min-width: 96px;
+  width: 96px;
   height: 22px;
   margin: 0;
   background: transparent;
@@ -412,6 +494,12 @@ button:focus-visible,
   opacity: 0.4;
 }
 
+/* The same switch laid out sideways, for the top bar. */
+.switch.inline {
+  flex-direction: row;
+  gap: 10px;
+}
+
 .switch-label {
   font-family: var(--display);
   font-weight: 700;
@@ -441,22 +529,40 @@ button:focus-visible,
   font-size: 0.9rem;
 }
 
-.broke button {
+/* A brass call-to-action: buttons, and links that look like them. */
+.brass-button {
+  display: inline-block;
   flex: none;
   padding: 10px 16px;
   border: 1px solid #2a1c05;
   border-radius: 8px;
   background: linear-gradient(180deg, #f6dc95, #b98a38);
+  box-shadow: 0 3px 0 #2a1c05;
   color: #2a1c05;
   font-family: var(--display);
   font-weight: 800;
   font-size: 1rem;
   letter-spacing: 0.12em;
+  text-align: center;
+  text-decoration: none;
   text-transform: uppercase;
   white-space: nowrap;
 }
 
+.brass-button:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #2a1c05;
+}
+
+a.brass-button:focus-visible {
+  outline: 3px solid var(--amber-hot);
+  outline-offset: 3px;
+}
+
 .footer {
+  width: min(100%, 1020px);
+  margin: 0 auto;
+  padding: 6px var(--gutter) 20px;
   color: var(--muted);
   font-size: 0.72rem;
   letter-spacing: 0.04em;
@@ -512,7 +618,34 @@ button:focus-visible,
   color: var(--muted);
 }
 
+/* Once the brand, the menu and the sound controls no longer fit on one line, the menu takes a row of its own. */
+@media (max-width: 900px) {
+  .topbar {
+    flex-wrap: wrap;
+    padding-bottom: 10px;
+  }
+  .topnav {
+    order: 3;
+    width: 100%;
+    flex-wrap: nowrap;
+  }
+  .topnav a {
+    flex: 1;
+    padding: 6px 4px;
+    font-size: 0.85rem;
+    letter-spacing: 0.12em;
+    text-align: center;
+    white-space: nowrap;
+  }
+}
+
 @media (max-width: 760px) {
+  .brand {
+    font-size: 1.25rem;
+  }
+  .volume {
+    display: none;
+  }
   .cabinet {
     padding: 12px 12px 16px;
   }
@@ -527,20 +660,6 @@ button:focus-visible,
   }
   .stamp {
     font-size: 0.7rem;
-  }
-  /* The tabs share one row of their own under the title. */
-  .machines {
-    order: 3;
-    width: 100%;
-    flex-wrap: nowrap;
-  }
-  .machine-tab {
-    flex: 1;
-    padding: 6px 4px;
-    font-size: 0.82rem;
-    letter-spacing: 0.1em;
-    text-align: center;
-    white-space: nowrap;
   }
   .deck {
     grid-template-columns: 1fr 1fr;
@@ -581,5 +700,358 @@ button:focus-visible,
   .spin,
   .thumb {
     transition: none;
+  }
+}
+
+
+/* --- the lobby ----------------------------------------------------------------------------- */
+
+.lobby {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding-top: 26px;
+}
+
+.lobby h1 {
+  margin: 0;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(2.2rem, 7vw, 3.6rem);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--brass-light);
+  text-shadow: 0 1px 0 #000, 0 -1px 0 rgba(255, 236, 190, 0.18), 0 0 30px rgba(255, 179, 71, 0.18);
+}
+
+.lede {
+  max-width: 62ch;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cards li {
+  display: flex;
+}
+
+/* A game's card: an iron plate with a brass rim, like the machines themselves. */
+.card {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  padding: 22px 22px 20px;
+  border: 2px solid var(--brass-dark);
+  border-radius: 20px;
+  background: linear-gradient(180deg, var(--iron-hi), var(--iron-lo));
+  box-shadow: inset 0 1px 0 rgba(255, 236, 190, 0.18), inset 0 0 0 1px #000, 0 18px 50px rgba(0, 0, 0, 0.6);
+  color: var(--text);
+  text-decoration: none;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.card:hover,
+.card:focus-visible {
+  transform: translateY(-3px);
+  border-color: var(--amber-dim);
+  box-shadow: inset 0 1px 0 rgba(255, 236, 190, 0.18), inset 0 0 0 1px #000, 0 18px 50px rgba(0, 0, 0, 0.6), 0 0 34px rgba(255, 179, 71, 0.16);
+}
+
+.card:focus-visible {
+  outline: 3px solid var(--amber-hot);
+  outline-offset: 3px;
+}
+
+.card-emblem {
+  width: 96px;
+  height: 96px;
+  margin-bottom: 6px;
+  color: var(--brass-light);
+}
+
+.card[data-game="crucible"] .card-emblem {
+  color: #6fd6e4;
+}
+
+.card[data-game="forge"] .card-emblem {
+  color: var(--amber);
+}
+
+.card-emblem svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.card-tag {
+  color: var(--muted);
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 0.82rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.card-name {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 2.1rem;
+  line-height: 1.1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--brass-light);
+  text-shadow: 0 1px 0 #000;
+}
+
+.card-pitch {
+  margin: 4px 0 8px;
+  font-size: 0.85rem;
+}
+
+.card-facts {
+  margin: auto 0 14px;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.card-facts li::before {
+  content: "▸ ";
+  color: var(--amber-dim);
+}
+
+.card-play {
+  align-self: flex-start;
+  padding: 9px 18px;
+  border: 1px solid #2a1c05;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f6dc95, #b98a38);
+  box-shadow: 0 3px 0 #2a1c05;
+  color: #2a1c05;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 1rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.assurances {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 14px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.assurances li {
+  padding-left: 12px;
+  border-left: 2px solid var(--brass-dark);
+}
+
+.assurances strong {
+  color: var(--text);
+}
+
+/* --- the forge ------------------------------------------------------------------------------- */
+
+.forge-view .cabinet {
+  width: 100%;
+}
+
+.forge-deck {
+  grid-template-columns: 1fr 1fr 1.25fr 1.25fr auto;
+}
+
+.strike {
+  font-size: 1.6rem;
+}
+
+.meter {
+  position: relative;
+  height: 14px;
+  margin: 6px 0 4px;
+  overflow: hidden;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #040302, #0e0b08);
+  box-shadow: inset 0 2px 5px #000, 0 1px 0 rgba(255, 236, 190, 0.14);
+}
+
+.meter-fill {
+  width: 0;
+  height: 100%;
+  border-radius: 7px;
+  background: linear-gradient(90deg, var(--amber-dim), var(--amber), var(--amber-hot));
+  box-shadow: 0 0 10px rgba(255, 179, 71, 0.5);
+}
+
+.meter-fill.spring {
+  background: linear-gradient(90deg, var(--brass-dark), var(--brass), var(--brass-light));
+  box-shadow: 0 0 10px rgba(199, 154, 69, 0.4);
+}
+
+/* Where each heat bonus begins. */
+.tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(255, 236, 190, 0.4);
+}
+
+.ingot-button {
+  margin-top: 14px;
+  width: 100%;
+  font-size: 1.1rem;
+  animation: ingot-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes ingot-pulse {
+  50% {
+    box-shadow: 0 3px 0 #2a1c05, 0 0 22px rgba(255, 210, 122, 0.7);
+  }
+}
+
+.upgrades {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px;
+}
+
+.upgrade {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--brass-dark);
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--iron-hi), var(--iron-lo));
+  box-shadow: inset 0 1px 0 rgba(255, 236, 190, 0.12), 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.upgrade[data-affordable="true"] {
+  border-color: var(--amber-dim);
+  box-shadow: inset 0 1px 0 rgba(255, 236, 190, 0.12), 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 22px rgba(255, 179, 71, 0.14);
+}
+
+.upgrade header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 8px;
+}
+
+.upgrade h3 {
+  margin: 0;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 1.2rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--brass-light);
+}
+
+.upgrade-level {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.upgrade p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.upgrade p.upgrade-now {
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.buy {
+  margin-top: auto;
+  padding: 10px 14px;
+  border: 1px solid #2a1c05;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f6dc95, #b98a38);
+  box-shadow: 0 3px 0 #2a1c05;
+  color: #2a1c05;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 1rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* Not enough credits yet: the button still answers (with a thunk and the shortfall), but looks out of reach. */
+.upgrade[data-affordable="false"] .buy {
+  background: linear-gradient(180deg, #5b5345, #3a342b);
+  box-shadow: 0 3px 0 #14110c;
+  color: #cfc4ad;
+}
+
+.forge-stats {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .lobby {
+    padding-top: 14px;
+  }
+  .card-name {
+    font-size: 1.8rem;
+  }
+  .forge-deck {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "credits value"
+      "heat heat"
+      "spring spring"
+      "strike strike";
+    gap: 12px;
+  }
+  .forge-deck > .window:nth-child(1) {
+    grid-area: credits;
+  }
+  .forge-deck > .window:nth-child(2) {
+    grid-area: value;
+  }
+  .forge-deck > .window:nth-child(3) {
+    grid-area: heat;
+  }
+  .forge-deck > .window:nth-child(4) {
+    grid-area: spring;
+  }
+  .forge-deck > .strike {
+    grid-area: strike;
+    justify-self: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .ingot-button {
+    transition: none;
+    animation: none;
+  }
+  .card:hover,
+  .card:focus-visible {
+    transform: none;
   }
 }
