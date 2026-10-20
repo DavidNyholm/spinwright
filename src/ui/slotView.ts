@@ -1,5 +1,7 @@
 import { Container, Graphics } from "pixi.js";
 import type { Application, Texture, Ticker } from "pixi.js";
+import { panFor } from "../audio/sfx.ts";
+import type { LoopHandle, Sfx } from "../audio/sfx.ts";
 import type { GameConfig, LineWin, Position, ScatterWin, SpinResult, SymbolId } from "../engine/index.ts";
 import { drawReelBed, drawReelShade } from "./art/reelBed.ts";
 import type { WindowRect } from "./art/reelBed.ts";
@@ -30,6 +32,8 @@ export type WinStep =
 export interface SlotViewOptions {
   /** Skips blur and uses the short turbo timings. */
   reduceMotion: boolean;
+  /** Where the reels' sounds go. */
+  sfx: Sfx;
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -48,6 +52,8 @@ export class SlotView {
   readonly #frames = new Graphics();
   readonly #path = new Graphics();
   readonly #reduceMotion: boolean;
+  readonly #sfx: Sfx;
+  #spinLoop: LoopHandle | null = null;
   #turbo = false;
   #resolveSpin: (() => void) | null = null;
   #presentToken = 0;
@@ -56,6 +62,7 @@ export class SlotView {
     this.#game = game;
     this.#ticker = app.ticker;
     this.#reduceMotion = options.reduceMotion;
+    this.#sfx = options.sfx;
     const { width, height } = stageSize(game.reels, game.rows);
 
     const windows: WindowRect[] = Array.from({ length: game.reels }, (_, reel) => ({
@@ -105,6 +112,8 @@ export class SlotView {
     if (this.#resolveSpin !== null) throw new Error("A spin is already in progress");
     this.clearHighlights();
     this.#turbo = turbo;
+    this.#sfx.play("spinStart");
+    this.#spinLoop = this.#sfx.loop("reelLoop", { gain: 0.7 });
     const now = this.#ticker.lastTime;
     const timeScale = this.#timeScale();
     stops.forEach((stop, reel) => {
@@ -234,7 +243,11 @@ export class SlotView {
     reel.showStop(this.#motions[reelIndex]!.stop);
     this.#appliedShifts[reelIndex] = 0;
     reel.setBlur(0);
+    // Each reel thumps into place a little higher in pitch than the one before, from the left speaker to the right.
+    this.#sfx.play("reelStop", { pan: panFor(reelIndex, this.#reels.length), rate: 1 + 0.035 * reelIndex });
     if (this.#motions.every((motion) => motion.phase === "idle")) {
+      this.#spinLoop?.stop(0.12);
+      this.#spinLoop = null;
       const resolve = this.#resolveSpin;
       this.#resolveSpin = null;
       resolve?.();

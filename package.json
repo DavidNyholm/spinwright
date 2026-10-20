@@ -14,7 +14,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.engine.json --noEmit",
-    "sim": "node src/sim/cli.ts"
+    "sim": "node src/sim/cli.ts",
+    "sounds": "node scripts/exportSounds.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",

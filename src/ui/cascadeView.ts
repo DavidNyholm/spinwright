@@ -1,6 +1,8 @@
 import { Container, Graphics, Sprite, Text } from "pixi.js";
 import type { Application, Texture } from "pixi.js";
 import type { RoundHooks } from "../app/machine.ts";
+import { heatSemitones, panFor, semitoneRate, winSound } from "../audio/sfx.ts";
+import type { LoopHandle, Sfx } from "../audio/sfx.ts";
 import { columnFall } from "../engine/cascade/index.ts";
 import type { CascadeConfig, CascadeResult, CascadeStep, RoundResult } from "../engine/cascade/index.ts";
 import type { SymbolId } from "../engine/index.ts";
@@ -49,7 +51,12 @@ const lerp = (from: number, to: number, t: number): number => from + (to - from)
 
 export interface CascadeViewOptions {
   readonly reduceMotion: boolean;
+  /** Where the board's sounds go. */
+  readonly sfx: Sfx;
 }
+
+/** The pitch each column's landing sound is raised by, rising left to right: a fill lands as a rolling arpeggio. */
+const COLUMN_SEMITONES = [0, 2, 4, 7, 9, 12] as const;
 
 /**
  * The gem board: pieces that fall in, glow, burst, and are replaced by pieces falling from above.
@@ -62,6 +69,8 @@ export class CascadeView {
   readonly #textures: ReadonlyMap<SymbolId, Texture>;
   readonly #symbolByTexture = new Map<Texture, SymbolId>();
   readonly #reduceMotion: boolean;
+  readonly #sfx: Sfx;
+  #furnaceLoop: LoopHandle | null = null;
   readonly #width: number;
   readonly #geometry: BoardGeometry;
   readonly #pieces: (Piece | null)[][];
@@ -80,6 +89,7 @@ export class CascadeView {
     this.#config = config;
     this.#textures = textures;
     this.#reduceMotion = options.reduceMotion;
+    this.#sfx = options.sfx;
     for (const [symbol, texture] of textures) this.#symbolByTexture.set(texture, symbol);
     this.#pieces = Array.from({ length: config.columns }, () => new Array<Piece | null>(config.rows).fill(null));
 
@@ -234,9 +244,11 @@ export class CascadeView {
       await this.#playRound(result.base, hooks, credit, false);
 
       if (result.feature !== null && feature !== null) {
+        this.#sfx.play("featureStart");
         await this.#pulseEmbers();
         await this.#showBanner("FURNACE LIT", `${feature.spins} FREE SPINS · HEAT CARRIES OVER`, TIMING.banner);
         this.#setCaption(true, "");
+        this.#furnaceLoop = this.#sfx.loop("furnaceLoop", { gain: 0.45 });
         let totalSpins: number = feature.spins;
         const before = running;
         for (const [index, round] of result.feature.entries()) {
@@ -244,15 +256,27 @@ export class CascadeView {
           await this.#playRound(round, hooks, credit, true);
           if (feature.retrigger !== null && round.scatters >= feature.retrigger.count && !round.capped) {
             totalSpins = Math.min(totalSpins + feature.retrigger.spins, feature.maxSpins);
+            this.#sfx.play("retrigger");
             await this.#showBanner(`+${feature.retrigger.spins} SPINS`, `${round.scatters} EMBERS`, TIMING.smallBanner);
           }
         }
+        this.#furnaceLoop?.stop(0.4);
+        this.#furnaceLoop = null;
+        const jingle = winSound(running - before, result.totalBet);
+        if (jingle !== null) this.#sfx.play(jingle);
         await this.#showBanner("FURNACE COMPLETE", `FEATURE WON ${formatCredits(running - before)}`, TIMING.banner);
         this.#setCaption(false, "");
+      } else {
+        // A win with no feature gets a jingle if it is worth one; the small ones already had their bursts.
+        const jingle = winSound(result.totalWin, result.totalBet);
+        if (jingle !== null && jingle !== "winTiny") this.#sfx.play(jingle);
       }
+      if (result.capped) this.#sfx.play("winHuge");
       if (result.capped) await this.#showBanner("MAXIMUM WIN", `${formatCredits(this.#config.maxWinMultiple)}× YOUR BET`, TIMING.banner);
     } finally {
       this.animator.speed = 1;
+      this.#furnaceLoop?.stop(0.2);
+      this.#furnaceLoop = null;
     }
   }
 
@@ -278,8 +302,12 @@ export class CascadeView {
     await this.#dropIn(round.openingGrid!);
     this.#setHeat(round.startHeat, false);
 
+    if (round.scatters >= 2) this.#sfx.play("ember", { gain: Math.min(1, 0.4 + 0.15 * round.scatters) });
+
     for (const [index, step] of round.steps.entries()) {
       this.#setHeat(step.heat, true);
+      // Each step is a note higher on a pentatonic ladder, however far the heat has climbed.
+      this.#sfx.play("heatUp", { rate: semitoneRate(heatSemitones(step.heat)), gain: 0.8 });
       hooks.setMessage(
         `Step ${index + 1}: ${step.clusters.length} ${step.clusters.length === 1 ? "group" : "groups"} at heat ×${step.heat} pays ${formatCredits(step.win)}`,
       );
@@ -311,12 +339,31 @@ export class CascadeView {
   }
 
   /** Plays one planned drop: waits for its turn, then falls and bounces to its cell. */
-  async #runDrop(sprite: Sprite, drop: Drop): Promise<void> {
+  async #runDrop(sprite: Sprite, drop: Drop, onLand: (drop: Drop) => void): Promise<void> {
     if (drop.delayMs > 0) await this.animator.wait(drop.delayMs);
     await this.animator.tween(drop.durationMs, (u) => {
       sprite.y = dropY(drop, drop.delayMs + u * drop.durationMs);
     });
     sprite.y = drop.toY;
+    onLand(drop);
+  }
+
+  /**
+   * One landing sound per column per fall (the first piece down in each column), not one per gem:
+   * thirty clinks at once would be noise. The columns' pitches rise left to right and their stereo
+   * position follows the board.
+   */
+  #landingSounds(): (drop: Drop) => void {
+    const landed = new Set<number>();
+    return (drop) => {
+      if (landed.has(drop.column)) return;
+      landed.add(drop.column);
+      this.#sfx.play("gemLand", {
+        pan: panFor(drop.column, this.#config.columns),
+        rate: semitoneRate(COLUMN_SEMITONES[drop.column % COLUMN_SEMITONES.length]!),
+        gain: 0.7,
+      });
+    };
   }
 
   async #dropIn(grid: readonly (readonly SymbolId[])[]): Promise<void> {
@@ -326,6 +373,7 @@ export class CascadeView {
       // nothing ever falls into the piece below it. Then the new fill falls in.
       const { columns, rows } = this.#config;
       const distance = (rows + 1) * (CASCADE_LAYOUT.cell + CASCADE_LAYOUT.gap);
+      this.#sfx.play("whoosh", { gain: 0.8 });
       const exits: Promise<void>[] = [];
       for (let column = 0; column < columns; column++) {
         for (let row = 0; row < rows; row++) {
@@ -348,10 +396,11 @@ export class CascadeView {
     }
 
     const drops: Promise<void>[] = [];
+    const landing = this.#landingSounds();
     for (const drop of planDropIn(this.#geometry)) {
       const piece = this.#makePiece(grid[drop.column]![drop.toRow]!, this.#centreX(drop.column), drop.fromY);
       this.#pieces[drop.column]![drop.toRow] = piece;
-      drops.push(this.#runDrop(piece.sprite, drop));
+      drops.push(this.#runDrop(piece.sprite, drop, landing));
     }
     await Promise.all(drops);
   }
@@ -404,6 +453,7 @@ export class CascadeView {
   }
 
   async #burst(step: CascadeStep): Promise<void> {
+    this.#sfx.play("gemBurst", { gain: Math.min(1, 0.6 + 0.12 * step.clusters.length) });
     const doomed: { piece: Piece; x: number; y: number }[] = [];
     for (const cluster of step.clusters) {
       for (const [column, row] of cluster.cells) {
@@ -454,13 +504,14 @@ export class CascadeView {
       column.map((piece, row) => (piece !== null && !drops.some((d) => d.column === index && d.fromRow === row) ? piece : null)),
     );
     const running: Promise<void>[] = [];
+    const landing = this.#landingSounds();
     for (const drop of drops) {
       const piece =
         drop.fromRow === null
           ? this.#makePiece(nextGrid[drop.column]![drop.toRow]!, this.#centreX(drop.column), drop.fromY)
           : this.#pieces[drop.column]![drop.fromRow]!;
       arranged[drop.column]![drop.toRow] = piece;
-      running.push(this.#runDrop(piece.sprite, drop));
+      running.push(this.#runDrop(piece.sprite, drop, landing));
     }
     this.#pieces.splice(0, columns, ...arranged);
     await Promise.all(running);

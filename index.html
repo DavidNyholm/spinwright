@@ -43,11 +43,19 @@
 
           <button id="spin" class="spin" type="button" disabled data-spinning="false">SPIN</button>
 
-          <label class="switch">
-            <input id="turbo" type="checkbox" />
-            <span class="track"><span class="thumb"></span></span>
-            <span class="switch-label">Turbo</span>
-          </label>
+          <div class="switches">
+            <label class="switch">
+              <input id="turbo" type="checkbox" />
+              <span class="track"><span class="thumb"></span></span>
+              <span class="switch-label">Turbo</span>
+            </label>
+            <label class="switch">
+              <input id="sound" type="checkbox" checked />
+              <span class="track"><span class="thumb"></span></span>
+              <span class="switch-label">Sound</span>
+            </label>
+            <input id="volume" class="volume" type="range" min="0" max="100" step="5" value="60" aria-label="Volume" />
+          </div>
         </section>
       </div>
 

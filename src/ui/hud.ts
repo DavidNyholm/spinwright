@@ -7,15 +7,20 @@ function byId<T extends HTMLElement>(id: string): T {
   return element as T;
 }
 
+/** While a counter rolls up it calls its tick callback at most this often, which is the pace of the coin sound. */
+const TICK_INTERVAL_MS = 55;
+
 /** A number shown on the page that can count up to a new value. */
 class Counter {
   readonly #element: HTMLElement;
+  readonly #onTick: (() => void) | undefined;
   #shown = 0;
   #target = 0;
   #frame = 0;
 
-  constructor(element: HTMLElement) {
+  constructor(element: HTMLElement, onTick?: () => void) {
     this.#element = element;
+    this.#onTick = onTick;
     this.set(0);
   }
 
@@ -39,10 +44,16 @@ class Counter {
       return;
     }
     const started = performance.now();
+    let lastTick = -Infinity;
     const step = (now: number): void => {
       const progress = Math.min(1, (now - started) / durationMs);
+      const before = this.#shown;
       this.#shown = Math.round(from + (target - from) * (1 - (1 - progress) ** 3));
       this.#render();
+      if (this.#shown !== before && now - lastTick >= TICK_INTERVAL_MS) {
+        lastTick = now;
+        this.#onTick?.();
+      }
       if (progress < 1) this.#frame = requestAnimationFrame(step);
     };
     this.#frame = requestAnimationFrame(step);
@@ -62,13 +73,18 @@ export interface HudHandlers {
   onSpin(): void;
   onBetStep(direction: -1 | 1): void;
   onTurbo(on: boolean): void;
+  onSound(on: boolean): void;
+  /** 0 to 1. */
+  onVolume(volume: number): void;
   onRefill(): void;
+  /** Called as the win counter rolls up, at the pace of a coin sound. */
+  onWinTick?(): void;
 }
 
 /** The controls and readouts around the reels. Holds no game logic. */
 export class Hud {
-  readonly #balance = new Counter(byId("balance"));
-  readonly #win = new Counter(byId("win"));
+  readonly #balance: Counter;
+  readonly #win: Counter;
   readonly #totalBet = byId("total-bet");
   readonly #betDetail = byId("bet-detail");
   readonly #message = byId("message");
@@ -76,14 +92,23 @@ export class Hud {
   readonly #betDown = byId<HTMLButtonElement>("bet-down");
   readonly #betUp = byId<HTMLButtonElement>("bet-up");
   readonly #turbo = byId<HTMLInputElement>("turbo");
+  readonly #sound = byId<HTMLInputElement>("sound");
+  readonly #volume = byId<HTMLInputElement>("volume");
   readonly #broke = byId("broke");
   readonly #state = { ready: false, spinning: false, broke: false, canDecrease: false, canIncrease: false };
 
   constructor(handlers: HudHandlers) {
+    this.#balance = new Counter(byId("balance"));
+    this.#win = new Counter(byId("win"), () => handlers.onWinTick?.());
     this.#spin.addEventListener("click", () => handlers.onSpin());
     this.#betDown.addEventListener("click", () => handlers.onBetStep(-1));
     this.#betUp.addEventListener("click", () => handlers.onBetStep(1));
     this.#turbo.addEventListener("change", () => handlers.onTurbo(this.#turbo.checked));
+    this.#sound.addEventListener("change", () => {
+      this.#volume.disabled = !this.#sound.checked;
+      handlers.onSound(this.#sound.checked);
+    });
+    this.#volume.addEventListener("input", () => handlers.onVolume(Number(this.#volume.value) / 100));
     byId("refill").addEventListener("click", () => handlers.onRefill());
 
     // Space or Enter spins, unless a control has focus (it would also fire that control's own click).
@@ -148,6 +173,12 @@ export class Hud {
 
   setTurbo(on: boolean): void {
     this.#turbo.checked = on;
+  }
+
+  setSound(on: boolean, volume: number): void {
+    this.#sound.checked = on;
+    this.#volume.value = String(Math.round(volume * 100));
+    this.#volume.disabled = !on;
   }
 
   setMessage(text: string): void {

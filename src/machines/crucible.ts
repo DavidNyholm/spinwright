@@ -1,5 +1,6 @@
 import { Application } from "pixi.js";
 import type { Machine, PlannedRound, RoundHooks } from "../app/machine.ts";
+import type { Sfx } from "../audio/sfx.ts";
 import { playCascade } from "../engine/cascade/index.ts";
 import type { CascadeConfig, CascadeResult } from "../engine/cascade/index.ts";
 import { createRng } from "../engine/index.ts";
@@ -36,7 +37,7 @@ export class CrucibleMachine implements Machine {
     this.idleMessage = `Groups of ${config.minCluster}+ gems pay. Every win heats the furnace and multiplies the next.`;
   }
 
-  async mount(host: HTMLElement, options: { reduceMotion: boolean }): Promise<{ width: number; height: number }> {
+  async mount(host: HTMLElement, options: { reduceMotion: boolean; sfx: Sfx }): Promise<{ width: number; height: number }> {
     const config = this.#config;
     const size = cascadeStageSize(config.columns, config.rows);
     const app = new Application();
@@ -55,7 +56,7 @@ export class CrucibleMachine implements Machine {
 
     const pieces = new Set(config.weights.flatMap((column) => Object.keys(column)));
     const textures = createSymbolTextures(app.renderer, FOUNDRY, pieces, CASCADE_LAYOUT.cell, CASCADE_LAYOUT.cell);
-    this.#view = new CascadeView(app, config, textures, { reduceMotion: options.reduceMotion });
+    this.#view = new CascadeView(app, config, textures, { reduceMotion: options.reduceMotion, sfx: options.sfx });
 
     // The first picture is a settled board with nothing to win, from a fixed seed so it is always the same.
     const idle = playCascade(config, createRng("crucible-idle"), 1, { record: true }).base.finalGrid!;

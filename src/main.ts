@@ -6,6 +6,7 @@ import "@fontsource/ibm-plex-mono/latin-600";
 import "./style.css";
 import type { Ticker } from "pixi.js";
 import { BUILT_WITH } from "./app/about.ts";
+import { SoundPlayer } from "./audio/player.ts";
 import type { Machine, RoundHooks } from "./app/machine.ts";
 import { loadPrefs, savePrefs } from "./app/prefs.ts";
 import { SETTINGS } from "./app/settings.ts";
@@ -38,9 +39,14 @@ async function main(): Promise<void> {
     SETTINGS.prefsKey,
     SETTINGS.betLevels,
     MACHINES.map((entry) => entry.id),
-    { unitBet: SETTINGS.defaultUnitBet, turbo: false, machine: MACHINES[0]!.id },
+    { unitBet: SETTINGS.defaultUnitBet, turbo: false, sound: true, volume: SETTINGS.defaultVolume, machine: MACHINES[0]!.id },
   );
   const levels = SETTINGS.betLevels;
+
+  // Browsers only allow sound after the visitor has interacted with the page, so the player is
+  // unlocked by the first click or key press; before that it is simply silent.
+  const sfx = new SoundPlayer({ volume: prefs.volume, muted: !prefs.sound });
+  for (const gesture of ["pointerdown", "keydown"] as const) document.addEventListener(gesture, () => sfx.unlock(), { capture: true });
 
   let machine: Machine | null = null;
   let debug: DebugPanel | null = null;
@@ -52,18 +58,38 @@ async function main(): Promise<void> {
 
   const hud = new Hud({
     onSpin: () => handleSpin(),
-    onBetStep: (direction) => stepBet(direction),
+    onBetStep: (direction) => {
+      sfx.play(direction > 0 ? "betUp" : "betDown");
+      stepBet(direction);
+    },
     onTurbo: (on) => {
+      sfx.play("tick");
       prefs.turbo = on;
       savePrefs(store, SETTINGS.prefsKey, prefs);
     },
+    onSound: (on) => {
+      prefs.sound = on;
+      savePrefs(store, SETTINGS.prefsKey, prefs);
+      sfx.setMuted(!on);
+      // Switching sound on plays a tick, so it is clear it worked.
+      if (on) sfx.play("tick");
+    },
+    onVolume: (volume) => {
+      prefs.volume = volume;
+      savePrefs(store, SETTINGS.prefsKey, prefs);
+      sfx.setVolume(volume);
+      sfx.play("tick");
+    },
+    onWinTick: () => sfx.play("coin", { gain: 0.8 }),
     onRefill: () => {
+      sfx.play("winSmall");
       wallet.reset();
       hud.setBalance(wallet.balance);
       refreshBroke();
       hud.setMessage("Credits topped up. Good luck!");
     },
   });
+  hud.setSound(prefs.sound, prefs.volume);
   hud.setMessage("Loading…");
 
   const hooks: RoundHooks = {
@@ -118,7 +144,7 @@ async function main(): Promise<void> {
     try {
       // The artwork uses the display font; draw it only once the font is ready.
       await document.fonts.load('800 48px "Big Shoulders Display"');
-      const size = await next.mount(host, { reduceMotion });
+      const size = await next.mount(host, { reduceMotion, sfx });
       document.documentElement.style.setProperty("--aspect", String(size.width / size.height));
     } catch (error) {
       console.error(error);
@@ -257,6 +283,11 @@ async function main(): Promise<void> {
         pieceStates: () => (qaState()["pieceStates"] as () => { x: number; y: number; scale: number; alpha: number; symbol: string }[])(),
         finishCounters: () => hud.finishCounters(),
         switchTo,
+        sound: {
+          /** How many times each sound was asked for, heard or not. */
+          requests: sfx.requests,
+          state: () => sfx.state,
+        },
         /**
          * Steps the real animation by hand, at 60 fps of simulated time, until the round is over. It
          * does not depend on the browser's frame rate, so QA scripts stay fast and repeatable even in
@@ -267,6 +298,8 @@ async function main(): Promise<void> {
           const frameMs = 1000 / 60;
           let simulated = 0;
           ticker.stop();
+          // The animation runs faster than real time here, so its sounds would pile up; hold them back.
+          sfx.setSuspended(true);
           try {
             let time = ticker.lastTime;
             while (document.body.dataset["state"] !== "idle" && simulated < maxMs) {
@@ -277,6 +310,7 @@ async function main(): Promise<void> {
               for (let i = 0; i < 12; i++) await Promise.resolve();
             }
           } finally {
+            sfx.setSuspended(false);
             ticker.start();
           }
           return simulated;

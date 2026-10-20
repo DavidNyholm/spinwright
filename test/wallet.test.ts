@@ -77,7 +77,7 @@ describe("Wallet", () => {
 describe("prefs", () => {
   const LEVELS = [1, 2, 5];
   const MACHINES = ["one", "two"];
-  const DEFAULTS = { unitBet: 2, turbo: false, machine: "one" };
+  const DEFAULTS = { unitBet: 2, turbo: false, sound: true, volume: 0.6, machine: "one" };
   const load = (store: ReturnType<typeof memoryStore>) => loadPrefs(store, "p", LEVELS, MACHINES, DEFAULTS);
 
   it("returns the defaults when nothing is saved", () => {
@@ -86,20 +86,33 @@ describe("prefs", () => {
 
   it("round-trips saved preferences", () => {
     const store = memoryStore();
-    savePrefs(store, "p", { unitBet: 5, turbo: true, machine: "two" });
-    expect(load(store)).toEqual({ unitBet: 5, turbo: true, machine: "two" });
+    const saved = { unitBet: 5, turbo: true, sound: false, volume: 0.25, machine: "two" };
+    savePrefs(store, "p", saved);
+    expect(load(store)).toEqual(saved);
   });
 
   it("drops a saved bet that is no longer an allowed level", () => {
     const store = memoryStore();
-    savePrefs(store, "p", { unitBet: 3, turbo: true, machine: "two" });
-    expect(load(store)).toEqual({ unitBet: 2, turbo: true, machine: "two" });
+    savePrefs(store, "p", { ...DEFAULTS, unitBet: 3, turbo: true, machine: "two" });
+    expect(load(store)).toEqual({ ...DEFAULTS, unitBet: 2, turbo: true, machine: "two" });
   });
 
   it("drops a saved machine that no longer exists", () => {
     const store = memoryStore();
-    savePrefs(store, "p", { unitBet: 5, turbo: false, machine: "retired" });
-    expect(load(store)).toEqual({ unitBet: 5, turbo: false, machine: "one" });
+    savePrefs(store, "p", { ...DEFAULTS, unitBet: 5, machine: "retired" });
+    expect(load(store)).toEqual({ ...DEFAULTS, unitBet: 5, machine: "one" });
+  });
+
+  it.each([-0.1, 1.5, Number.NaN])("drops a saved volume of %s", (volume) => {
+    const store = memoryStore();
+    store.setItem("p", JSON.stringify({ ...DEFAULTS, volume }));
+    expect(load(store).volume).toBe(0.6);
+  });
+
+  it("keeps a saved volume of zero and a saved mute", () => {
+    const store = memoryStore();
+    savePrefs(store, "p", { ...DEFAULTS, volume: 0, sound: false });
+    expect(load(store)).toMatchObject({ volume: 0, sound: false });
   });
 
   it("survives corrupt saved data", () => {

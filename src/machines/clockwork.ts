@@ -1,5 +1,7 @@
 import { Application } from "pixi.js";
 import type { Machine, PlannedRound, RoundHooks } from "../app/machine.ts";
+import { winSound } from "../audio/sfx.ts";
+import type { Sfx } from "../audio/sfx.ts";
 import { winCountDuration } from "../app/winCount.ts";
 import { buildGrid, spin, spinFromStops } from "../engine/index.ts";
 import type { GameConfig, Rng, SpinResult } from "../engine/index.ts";
@@ -41,6 +43,7 @@ export class ClockworkMachine implements Machine {
   #app: Application | null = null;
   #view: SlotView | null = null;
   #reduceMotion = false;
+  #sfx: Sfx | null = null;
   #lastResult: SpinResult | null = null;
 
   constructor(game: GameConfig) {
@@ -50,8 +53,9 @@ export class ClockworkMachine implements Machine {
     this.forcedStopLimits = game.strips.map((strip) => strip.length);
   }
 
-  async mount(host: HTMLElement, options: { reduceMotion: boolean }): Promise<{ width: number; height: number }> {
+  async mount(host: HTMLElement, options: { reduceMotion: boolean; sfx: Sfx }): Promise<{ width: number; height: number }> {
     this.#reduceMotion = options.reduceMotion;
+    this.#sfx = options.sfx;
     const game = this.#game;
     const size = stageSize(game.reels, game.rows);
     const app = new Application();
@@ -69,7 +73,7 @@ export class ClockworkMachine implements Machine {
     this.#app = app;
 
     const textures = createSymbolTextures(app.renderer, CLOCKWORK, new Set(game.strips.flat()), LAYOUT.cellWidth, LAYOUT.cellHeight);
-    this.#view = new SlotView(app, game, textures, { reduceMotion: options.reduceMotion });
+    this.#view = new SlotView(app, game, textures, { reduceMotion: options.reduceMotion, sfx: options.sfx });
     const initialStops = game.strips.map((strip, reel) => (reel * INITIAL_STOP_SPACING) % strip.length);
     this.#view.showStops(initialStops);
     app.canvas.setAttribute("aria-label", describeGrid(buildGrid(game, initialStops)));
@@ -99,6 +103,9 @@ export class ClockworkMachine implements Machine {
           hooks.setMessage("No win this spin.");
           return;
         }
+        const jingle = winSound(result.totalWin, result.totalBet);
+        if (jingle !== null) this.#sfx?.play(jingle);
+        if (result.scatterWin !== null) this.#sfx?.play("scatter", { gain: 0.8 });
         hooks.setWin(result.totalWin, this.#reduceMotion ? 0 : winCountDuration(result.totalWin, result.totalBet));
         view.presentWins(result, (step) => hooks.setMessage(describeStep(step, result)));
       },

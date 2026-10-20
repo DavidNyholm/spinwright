@@ -17,6 +17,8 @@ Then open the address Vite prints. Space or Enter spins, and pressing it mid-spi
 
 The look is a brass workshop, drawn entirely with code: engraved metal plates, gears, gems, a dark iron cabinet with amber displays. There are no image files. To review the artwork on its own, open `/symbols.html` on the dev server.
 
+Sound is on by default and starts at your first click or key press (browsers keep a page silent until then). The **Sound** switch and volume slider are in the control deck, and both are remembered. To audition every sound, open `/sounds.html` on the dev server.
+
 ## The machines
 
 **No. 1 Clockwork** is a five-reel, three-row, twenty-line machine with a wild and a scatter. Its return is **95.94%**, computed exactly rather than estimated, with a win on about 39% of spins.
@@ -44,6 +46,19 @@ Measured over 4 million plays (see the simulator below):
 - **The engines have no browser code.** A second TypeScript config type-checks `src/engine` and `src/games` without the DOM library, so they stay runnable in Node and could move to a server.
 - **Animation is plain numbers first.** Reel motion and the cascade's falling pieces are pure plans driven by an explicit clock; the Pixi view only displays them. That is what makes them testable.
 - **Symbols are drawn with vector shapes**, so there are no art files to license. A different theme is a different set of textures.
+
+## Sound
+
+Every sound is synthesised by code (`src/audio`), the way the artwork is drawn by code: oscillators, filtered noise and struck bells, mixed into plain sample arrays. There are no recordings, so there is no licence to track and no attribution to give, and the whole set is built in a few milliseconds at start-up.
+
+- **Reels:** a pull as they start, a ratchet while they spin, and a thump as each one lands, a little higher in pitch than the last and panned from the left speaker to the right.
+- **Crucible:** the new fill lands as a rolling arpeggio, one note per column. Each step of a cascade plays a note one rung higher on a pentatonic ladder as the heat climbs, then a glass-shattering burst. Embers crackle, and the furnace lights with a rising roar and settles into a low rumble for the feature.
+- **Wins:** four tiers of bell jingle by size, coin ticks while the counter rolls up.
+- **Safety:** a limiter sits before the speakers so many sounds at once cannot clip, and the voice count is capped.
+
+`npm run sounds` writes every sound to `sounds-out/` as a WAV file. `/sounds.html` plays each one, the heat and win ladders, and whole sequences as the game plays them.
+
+**What is and is not verified.** The levels, clipping, pitch, decay, loop seams and which sound plays at which moment are all tested (below). Whether the set sounds *good* is a matter of ears, and has not been judged by anyone yet.
 
 ## How random is it?
 
@@ -96,9 +111,11 @@ Add `?debug` to the page address to get a QA panel: force exact reel stops on Cl
 
 **Animation.** Landing a reel exactly on its stop is tested for every stop, including quick stops at any moment. The fall choreography is tested against itself: across thousands of random boards, no falling piece may sink into the one above it at any moment of the animation, and a test confirms the checker would catch a bounce that grows with the fall (the bug this test was added for).
 
+**Sound.** Every sound is built deterministically and tested: samples are finite and never clip, start and end at silence, ring at the pitch asked for (measured by spectral energy), and die away rather than being cut off. Each loop must join its end to its start without a click, and a hum can only enter a loop if it makes a whole number of cycles, which the code enforces. In the browser, the sounds the views *ask for* were compared against the engine's decided result: across 98 Crucible rounds (two full furnace features) and 61 Clockwork spins, every heat note, burst, column landing, reel stop, feature sound and win jingle matched what the result called for, exactly. One path is untested: the retrigger sound, because a retrigger did not occur and cannot be forced.
+
 **In the browser.** Sixty real spins on Clockwork and four hundred on Crucible (including two full furnace features) were checked, normal and turbo, with quick stops: the picture read back from the screen equals the engine's result every time, the wallet and on-screen numbers match, and there were no page errors. The cascade animation was measured frame by frame over 120 spins (7,785 frames): the worst overlap between falling pieces is 0.1 pixel. The production build was also played from a `/spinwright/` subpath, the way GitHub Pages serves it.
 
-**Tests against deliberate bugs.** Sixteen injected bugs across both engines and the motion code (modulo bias, a non-wrapping reel window, wilds not extending runs, a wrong RTP divisor, scatter paid on the wrong bet, a wrong landing offset, heat that never rises, a reversed refill order, a cluster finder that ignores one neighbour, a feature that needs one scatter too many, heat that resets between feature spins, a missing win cap, and more) were each caught by the suite.
+**Tests against deliberate bugs.** Twenty-five injected bugs across both engines, the motion code and the sound code (a loop crossfade run backwards, a hum that does not fit its loop, a sound normalised past clipping, a bell on the wrong note, modulo bias, a non-wrapping reel window, wilds not extending runs, a wrong RTP divisor, scatter paid on the wrong bet, a wrong landing offset, heat that never rises, a reversed refill order, a cluster finder that ignores one neighbour, a feature that needs one scatter too many, heat that resets between feature spins, a missing win cap, and more) were each caught by the suite.
 
 ## Layout
 
@@ -111,6 +128,7 @@ src/app/               wallet, saved preferences, the Machine interface (no draw
 src/machines/          Clockwork and Crucible: a game plus its look and motion
 src/ui/                PixiJS reels, cascade view, animator, HUD, QA panel
 src/ui/art/            the artwork: palette, metal helpers, both symbol sets, reel bed
+src/audio/             sound synthesis, the recipes for every sound, and the Web Audio player
 test/                  Vitest suite
 ```
 
@@ -127,5 +145,6 @@ All rights reserved. The source is public to read and evaluate, not to reuse. Se
 1. ~~Line engine, simulator, tests~~
 2. ~~Playable UI with PixiJS reels and a play-money wallet~~
 3. ~~Second machine: cascade engine, heat multiplier, furnace feature~~
-4. A way to earn credits (a mini-game)
-5. Deploy to GitHub Pages
+4. ~~Sound~~ (built; waiting on a listen)
+5. A way to earn credits (a mini-game)
+6. Deploy to GitHub Pages
