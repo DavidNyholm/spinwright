@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { CATALOG, CLOCKWORK_RTP_PERCENT, SLOT_ENTRIES } from "../src/app/catalog.ts";
 import { parseRoute, routeToHash } from "../src/app/router.ts";
-import { exactRtp } from "../src/engine/index.ts";
 import { classic } from "../src/games/classic.ts";
 import { crucible } from "../src/games/crucible.ts";
+import { estimateReturn } from "../src/sim/lineSim.ts";
 
 describe("catalog", () => {
   const machineIds = SLOT_ENTRIES.map((entry) => entry.id);
@@ -22,14 +22,16 @@ describe("catalog", () => {
     expect(CATALOG.filter((entry) => entry.kind !== "slot").every((entry) => entry.number === null)).toBe(true);
   });
 
-  it("shows Clockwork's return as it really is, to two places", () => {
-    expect(CLOCKWORK_RTP_PERCENT).toBe(Math.round(exactRtp(classic).total * 10_000) / 100);
+  it("shows Clockwork's return as it really is: close to what the engine plays", { timeout: 120_000 }, () => {
+    // The opening spin is exact and the free spins are simulated, so the quoted figure may be off by sampling error only.
+    const estimate = estimateReturn(classic, 50_000, "catalog-clockwork");
+    expect(Math.abs(estimate.total * 100 - CLOCKWORK_RTP_PERCENT)).toBeLessThan(0.7);
     const clockwork = CATALOG.find((entry) => entry.id === classic.id)!;
-    expect(clockwork.facts.join(" ")).toContain("95.94%");
+    expect(clockwork.facts.join(" ")).toContain(`${CLOCKWORK_RTP_PERCENT}%`);
   });
 
   it("says what each game is made of, from its own configuration", () => {
-    expect(CATALOG.find((entry) => entry.id === classic.id)!.facts[0]).toBe(`${classic.reels} reels, ${classic.paylines.length} lines`);
+    expect(CATALOG.find((entry) => entry.id === classic.id)!.facts[0]).toContain(`${classic.reels} reels, ${classic.paylines.length} lines`);
     expect(CATALOG.find((entry) => entry.id === crucible.id)!.facts[0]).toContain(`${crucible.columns} × ${crucible.rows}`);
   });
 });

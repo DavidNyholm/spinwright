@@ -1,4 +1,7 @@
 import type { CascadeResult } from "../engine/cascade/index.ts";
+import { Running } from "./running.ts";
+
+export { Running };
 
 /** Win-size bands as a multiple of the total bet; a play lands in the last band whose `min` it reaches. */
 export const CASCADE_WIN_BANDS: readonly { readonly label: string; readonly min: number }[] = [
@@ -14,28 +17,6 @@ export const CASCADE_WIN_BANDS: readonly { readonly label: string; readonly min:
 
 /** How many winning steps the base spin had: 0, 1, 2, 3, 4, and 5 or more. */
 export const STEP_BUCKETS = 6;
-
-/** A running mean and variance that never stores the samples (Welford's method). */
-export class Running {
-  count = 0;
-  mean = 0;
-  #m2 = 0;
-
-  add(value: number): void {
-    this.count++;
-    const delta = value - this.mean;
-    this.mean += delta / this.count;
-    this.#m2 += delta * (value - this.mean);
-  }
-
-  get variance(): number {
-    return this.count > 1 ? this.#m2 / (this.count - 1) : 0;
-  }
-
-  get standardError(): number {
-    return Math.sqrt(this.variance / this.count);
-  }
-}
 
 export interface CascadeStats {
   plays: number;

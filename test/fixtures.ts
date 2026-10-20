@@ -16,6 +16,8 @@ const BASE: GameConfig = {
   },
   wild: "W",
   scatter: { symbol: "S", pays: { 3: 2, 4: 10, 5: 50 } },
+  feature: null,
+  maxWinMultiple: null,
 };
 
 /** The base test game with some fields replaced, validated like any real game. */

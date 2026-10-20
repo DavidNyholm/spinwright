@@ -8,7 +8,7 @@ import type { Route } from "./router.ts";
  * figures are written here rather than worked out on every page load; test/catalog.test.ts and
  * test/crucible.test.ts fail if the games are retuned and these are left behind.
  */
-export const CLOCKWORK_RTP_PERCENT = 95.94;
+export const CLOCKWORK_RTP_PERCENT = 96.1;
 export const CRUCIBLE_RTP_PERCENT = 95.5;
 
 export type EmblemName = "gear" | "gem" | "anvil";
@@ -35,8 +35,11 @@ export const CATALOG: readonly CatalogEntry[] = [
     kind: "slot",
     number: 1,
     name: "Clockwork",
-    pitch: "Five reels of brass and cogwheels. Wilds on the middle reels fill in for most symbols, and scatters pay from anywhere.",
-    facts: [`${classic.reels} reels, ${classic.paylines.length} lines`, `Returns ${percent(CLOCKWORK_RTP_PERCENT)} over time (exact)`],
+    pitch: "Five reels of brass and cogwheels. Three blueprints start free spins, and every wild that lands in them locks in place, so the board fills up as you go.",
+    facts: [
+      `${classic.reels} reels, ${classic.paylines.length} lines, wilds and scatters`,
+      `Returns about ${percent(CLOCKWORK_RTP_PERCENT)} (opening spin exact, free spins simulated)`,
+    ],
     emblem: "gear",
   },
   {

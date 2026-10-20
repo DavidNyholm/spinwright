@@ -296,6 +296,29 @@ const RECIPES: Readonly<Record<SfxName, () => Samples>> = {
     return finish(out, 0.45, 0.08);
   },
 
+  // --- Clockwork's free spins -------------------------------------------------------------
+
+  cogLock: () => {
+    // A cog seating itself: a low thunk, a higher tick, and a bright ring as the brass settles.
+    const out = silence(0.5);
+    mixInto(out, tone({ seconds: 0.1, from: 200, to: 90, decay: 0.025, attack: 0.0006 }), 0, 0.9);
+    mixInto(out, noiseBurst({ seconds: 0.02, seed: "cog-1", decay: 0.002, highpass: 2500 }), 0, 0.8);
+    mixInto(out, noiseBurst({ seconds: 0.02, seed: "cog-2", decay: 0.002, highpass: 3500 }), 0.055, 0.6);
+    mixInto(out, tone({ seconds: 0.05, from: 900, decay: 0.01, attack: 0.0005 }), 0.055, 0.5);
+    mixInto(out, bell(midi(91), 0.4, 0.14), 0.07, 0.6);
+    return finish(out, 0.6, 0.05);
+  },
+
+  anticipation: () => {
+    // The wait while the reels hold on for a scatter: noise sweeping up under a tone climbing a fifth.
+    // It is as long as the hold (see ANTICIPATION_MS), so it ends as the reel lands.
+    const out = silence(0.95);
+    mixInto(out, noiseSweep({ seconds: 0.95, seed: "anticipation", fromHz: 500, toHz: 5200, q: 2.2, envelope: (p) => p ** 1.4 }), 0, 0.8);
+    mixInto(out, tone({ seconds: 0.95, from: 330, to: 495, decay: 4, attack: 0.3 }), 0, 0.5);
+    mixInto(out, tone({ seconds: 0.95, from: 660, to: 990, decay: 4, attack: 0.4 }), 0, 0.3);
+    return finish(out, 0.5, 0.06);
+  },
+
   frenzy: () => {
     const out = silence(1.2);
     mixInto(out, noiseSweep({ seconds: 0.9, seed: "frenzy", fromHz: 400, toHz: 4200, q: 1.4, envelope: (p) => p ** 1.5 }), 0, 0.7);

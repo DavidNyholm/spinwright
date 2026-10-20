@@ -257,6 +257,7 @@ export class MachinePage {
       readouts: () => (state()["readouts"] as () => unknown)(),
       worstOverlap: () => (state()["worstOverlap"] as () => number)(),
       pieceStates: () => (state()["pieceStates"] as () => { x: number; y: number; scale: number; alpha: number; symbol: string }[])(),
+      lockedCells: () => (state()["lockedCells"] as () => unknown)(),
       finishCounters: () => hud.finishCounters(),
       /**
        * Steps the real animation by hand, at 60 fps of simulated time, until the round is over. It

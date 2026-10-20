@@ -9,12 +9,19 @@ function checkLineBet(lineBet: number): void {
   }
 }
 
-/** The visible window for the given stops: grid[reel][row], reading down each strip and wrapping at its end. */
-export function buildGrid(config: GameConfig, stops: readonly number[]): SymbolId[][] {
+/**
+ * The visible window for the given stops: grid[reel][row], reading down each strip and wrapping at its end.
+ * `strips` defaults to the game's own; the free spins pass theirs.
+ */
+export function buildGrid(
+  config: GameConfig,
+  stops: readonly number[],
+  strips: readonly (readonly SymbolId[])[] = config.strips,
+): SymbolId[][] {
   // Plain loops: the simulator calls this tens of millions of times and closures dominated its cost.
   const grid: SymbolId[][] = new Array<SymbolId[]>(config.reels);
   for (let reel = 0; reel < config.reels; reel++) {
-    const strip = config.strips[reel]!;
+    const strip = strips[reel]!;
     const stop = stops[reel]!;
     const column: SymbolId[] = new Array<SymbolId>(config.rows);
     for (let row = 0; row < config.rows; row++) column[row] = strip[(stop + row) % strip.length]!;

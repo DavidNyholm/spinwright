@@ -12,6 +12,24 @@ export type PayTable = Readonly<Record<number, number>>;
 export type Position = readonly [reel: number, row: number];
 
 /**
+ * A free-spins feature. Scatters on the opening spin start it; every wild that lands during it is
+ * locked in place until it ends, so the board fills up spin by spin.
+ */
+export interface FeatureConfig {
+  /**
+   * Free spins awarded by that many scatters on the opening spin, read like a pay table ("N or
+   * more"). The smallest key is the number of scatters that triggers the feature.
+   */
+  readonly spins: PayTable;
+  /** The reel strips used on free spins. They are their own, so the feature can be richer in wilds than the base game. */
+  readonly strips: readonly (readonly SymbolId[])[];
+  /** Free spins added when that many scatters land on a free spin, read like a pay table. */
+  readonly retrigger: PayTable;
+  /** The most free spins one feature can reach, retriggers included. */
+  readonly maxSpins: number;
+}
+
+/**
  * Pure data describing a slot game. Build one with defineGame(), which validates it.
  * Every other engine function assumes the config has already been validated.
  */
@@ -30,6 +48,10 @@ export interface GameConfig {
   readonly wild: SymbolId | null;
   /** Pays anywhere on the grid by count, as multiples of the total bet. */
   readonly scatter: { readonly symbol: SymbolId; readonly pays: PayTable } | null;
+  /** The free-spins feature, or null for a game with none. Needs a wild and a scatter. */
+  readonly feature: FeatureConfig | null;
+  /** The most a whole round (the spin and its feature) can win, as a multiple of the total bet, or null for no limit. */
+  readonly maxWinMultiple: number | null;
 }
 
 export interface LineWin {

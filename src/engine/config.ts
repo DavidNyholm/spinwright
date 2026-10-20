@@ -38,7 +38,7 @@ function checkPayTable(label: string, table: PayTable, maxCount: number, problem
 /** Returns every problem found in `config`; an empty list means it is valid. */
 export function findConfigProblems(config: GameConfig): string[] {
   const problems: string[] = [];
-  const { reels, rows, strips, paylines, pays, wild, scatter } = config;
+  const { reels, rows, strips, paylines, pays, wild, scatter, feature, maxWinMultiple } = config;
 
   if (config.id.trim() === "") problems.push("id must not be empty");
   if (config.name.trim() === "") problems.push("name must not be empty");
@@ -95,6 +95,39 @@ export function findConfigProblems(config: GameConfig): string[] {
       problems.push(`scatter "${scatter.symbol}" must not also have a line pays entry`);
     }
     checkPayTable("scatter.pays", scatter.pays, reels * rows, problems);
+  }
+
+  if (maxWinMultiple !== null && (!Number.isInteger(maxWinMultiple) || maxWinMultiple < 1)) {
+    problems.push(`maxWinMultiple must be a positive integer or null, got ${maxWinMultiple}`);
+  }
+
+  if (feature !== null) {
+    if (wild === null) problems.push("a feature needs a wild, because wilds are what lock in place");
+    if (scatter === null) problems.push("a feature needs a scatter to trigger it");
+    if (feature.strips.length !== reels) {
+      problems.push(`feature.strips has ${feature.strips.length} entries, expected one per reel (${reels})`);
+    }
+    feature.strips.forEach((strip, reel) => {
+      if (strip.length < rows) problems.push(`feature.strips[${reel}] has ${strip.length} symbols, needs at least ${rows} (the row count)`);
+      for (const symbol of strip) {
+        // A symbol only the feature uses would have no artwork on the base reels and no entry anyone checked.
+        if (!onStrips.has(symbol)) problems.push(`feature.strips[${reel}] contains "${symbol}", which is on no base reel strip`);
+      }
+    });
+    for (const [label, table] of [
+      ["feature.spins", feature.spins],
+      ["feature.retrigger", feature.retrigger],
+    ] as const) {
+      checkPayTable(label, table, reels * rows, problems);
+      for (const [key, spins] of Object.entries(table)) {
+        if (spins < 1) problems.push(`${label}[${key}]: must award at least one spin, got ${spins}`);
+      }
+    }
+    if (Object.keys(feature.spins).length === 0) problems.push("feature.spins is empty, so the feature could never be triggered");
+    const largestAward = Math.max(0, ...Object.values(feature.spins));
+    if (!Number.isInteger(feature.maxSpins) || feature.maxSpins < largestAward) {
+      problems.push(`feature.maxSpins (${feature.maxSpins}) must be an integer of at least the largest award (${largestAward})`);
+    }
   }
 
   return problems;

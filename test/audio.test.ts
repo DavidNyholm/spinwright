@@ -5,6 +5,7 @@ import { heatSemitones, panFor, RecordingSfx, semitoneRate, SFX_NAMES, silent, s
 import type { SfxName } from "../src/audio/sfx.ts";
 import { LOOPING, renderAll, renderSound } from "../src/audio/sounds.ts";
 import { decodeWav, encodeWav } from "../src/audio/wav.ts";
+import { ANTICIPATION_MS } from "../src/ui/spinPlan.ts";
 
 /** How much of the sound's energy sits at `frequency`, by the Goertzel algorithm (one bin of a DFT). */
 function energyAt(samples: Samples, frequency: number, from = 0, seconds = 0.4): number {
@@ -130,6 +131,24 @@ describe("what the sounds are made of", () => {
     const denied = get("denied");
     expect(energyAt(denied, 90, 0, 0.1)).toBeGreaterThan(20 * energyAt(denied, 2500, 0, 0.1));
     expect(peakOf(denied)).toBeLessThan(peakOf(get("upgrade")));
+  });
+
+  it("seats a cog with a sharp click first and a bright ring after it", () => {
+    const lock = get("cogLock");
+    expect(lock.length / SAMPLE_RATE).toBeLessThan(0.6);
+    // The click is in the first few milliseconds; the ring (a note near 1.5 kHz) is what is left after it.
+    const early = Math.max(...lock.slice(0, Math.round(0.01 * SAMPLE_RATE)).map(Math.abs));
+    expect(early).toBeGreaterThan(0.3 * peakOf(lock));
+    expect(energyAt(lock, 1568, 0.1, 0.25)).toBeGreaterThan(5 * energyAt(lock, 600, 0.1, 0.25));
+  });
+
+  it("builds tension for exactly as long as the reels hold on, and gets brighter as it goes", () => {
+    const wait = get("anticipation");
+    const seconds = wait.length / SAMPLE_RATE;
+    expect(seconds).toBeLessThanOrEqual(ANTICIPATION_MS / 1000);
+    expect(seconds).toBeGreaterThan(0.8 * (ANTICIPATION_MS / 1000));
+    // More of its energy is up at 3 kHz in the last third than in the first.
+    expect(energyAt(wait, 3000, (2 * seconds) / 3, seconds / 3)).toBeGreaterThan(4 * energyAt(wait, 3000, 0, seconds / 3));
   });
 
   it("rises when it says it rises", () => {

@@ -3,10 +3,11 @@ import type { Machine, PlannedRound, RoundHooks } from "../app/machine.ts";
 import { winSound } from "../audio/sfx.ts";
 import type { Sfx } from "../audio/sfx.ts";
 import { winCountDuration } from "../app/winCount.ts";
-import { buildGrid, spin, spinFromStops } from "../engine/index.ts";
-import type { GameConfig, Rng, SpinResult } from "../engine/index.ts";
+import { buildGrid, playRound, playRoundFromStops } from "../engine/index.ts";
+import type { FeatureResult, GameConfig, Position, Rng, RoundResult, SpinResult } from "../engine/index.ts";
 import { formatCredits } from "../ui/hud.ts";
 import { LAYOUT, stageSize } from "../ui/layout.ts";
+import { planSpin } from "../ui/spinPlan.ts";
 import { SlotView } from "../ui/slotView.ts";
 import type { WinStep } from "../ui/slotView.ts";
 import { CLOCKWORK, createSymbolTextures } from "../ui/theme.ts";
@@ -14,6 +15,19 @@ import { CLOCKWORK, createSymbolTextures } from "../ui/theme.ts";
 const MAX_PIXEL_RATIO = 3;
 /** Spacing between the reels' resting positions on first load, so the idle screen is not a flat row. */
 const INITIAL_STOP_SPACING = 7;
+
+/** How long each beat of the free spins is held, in milliseconds at normal speed. Turbo and stop shorten all of them. */
+const BEAT_MS = {
+  /** The scatters that started the feature, outlined before the banner. */
+  trigger: 1000,
+  startBanner: 1500,
+  retriggerBanner: 1100,
+  endBanner: 1800,
+  /** A free spin's wins, outlined. */
+  win: 950,
+  /** A free spin that wins nothing. */
+  noWin: 350,
+} as const;
 
 const describeGrid = (grid: readonly (readonly string[])[]): string =>
   grid.map((column, reel) => `Reel ${reel + 1}: ${column.map(CLOCKWORK.name).join(", ")}`).join(". ");
@@ -29,7 +43,22 @@ function describeStep(step: WinStep, result: SpinResult): string {
   }
 }
 
-/** Machine No. 1: a five-reel, twenty-line machine with wilds and scatters, in the Clockwork theme. */
+/** Every cell that takes part in a spin's wins. */
+const winCells = (result: SpinResult): Position[] => [...result.lineWins.flatMap((win) => win.positions), ...(result.scatterWin?.positions ?? [])];
+
+function cellsShowing(grid: readonly (readonly string[])[], symbol: string): Position[] {
+  const cells: Position[] = [];
+  grid.forEach((column, reel) => column.forEach((cell, row) => cell === symbol && cells.push([reel, row])));
+  return cells;
+}
+
+/** The smallest count in a pay-table-like record: how many scatters it takes. */
+const smallestKey = (table: Readonly<Record<number, number>>): number => Math.min(...Object.keys(table).map(Number));
+
+/**
+ * Machine No. 1: a five-reel, twenty-line machine with wilds and scatters, in the Clockwork theme.
+ * Three scatters start free spins, in which every wild that lands locks in place.
+ */
 export class ClockworkMachine implements Machine {
   readonly id: string;
   readonly number = 1;
@@ -37,20 +66,24 @@ export class ClockworkMachine implements Machine {
   readonly units: number;
   readonly unitName = "line";
   readonly forcedStopLimits: readonly number[];
-  readonly idleMessage = "Press spin, or hit Space, to play.";
+  readonly idleMessage: string;
 
   readonly #game: GameConfig;
   #app: Application | null = null;
   #view: SlotView | null = null;
   #reduceMotion = false;
   #sfx: Sfx | null = null;
-  #lastResult: SpinResult | null = null;
+  #lastResult: RoundResult | null = null;
 
   constructor(game: GameConfig) {
     this.#game = game;
     this.id = game.id;
     this.units = game.paylines.length;
     this.forcedStopLimits = game.strips.map((strip) => strip.length);
+    this.idleMessage =
+      game.feature === null
+        ? "Press spin, or hit Space, to play."
+        : `Press spin, or hit Space. ${smallestKey(game.feature.spins)} scatters start the free spins, where every wild that lands stays.`;
   }
 
   async mount(host: HTMLElement, options: { reduceMotion: boolean; sfx: Sfx }): Promise<{ width: number; height: number }> {
@@ -82,33 +115,28 @@ export class ClockworkMachine implements Machine {
 
   plan(unitBet: number, rng: Rng, forcedStops: readonly number[] | null): PlannedRound {
     const game = this.#game;
-    const result = forcedStops !== null ? spinFromStops(game, forcedStops, unitBet) : spin(game, rng, unitBet);
+    const round = forcedStops !== null ? playRoundFromStops(game, rng, forcedStops, unitBet) : playRound(game, rng, unitBet);
+    const { base, feature } = round;
     return {
-      totalBet: result.totalBet,
-      totalWin: result.totalWin,
+      totalBet: round.totalBet,
+      totalWin: round.totalWin,
       summary: {
-        stops: result.stops,
-        grid: result.grid,
-        lineWins: result.lineWins.map(({ line, symbol, count, win }) => ({ line, symbol, count, win })),
-        scatterWin: result.scatterWin && { count: result.scatterWin.count, win: result.scatterWin.win },
-        totalBet: result.totalBet,
-        totalWin: result.totalWin,
+        stops: base.stops,
+        grid: base.grid,
+        lineWins: base.lineWins.map(({ line, symbol, count, win }) => ({ line, symbol, count, win })),
+        scatterWin: base.scatterWin && { count: base.scatterWin.count, win: base.scatterWin.win },
+        feature: feature && {
+          awarded: feature.awarded,
+          spinsPlayed: feature.spins.length,
+          retriggers: feature.spins.filter((spin) => spin.retriggered > 0).length,
+          wildsLocked: feature.spins.at(-1)?.locked.length ?? 0,
+          win: feature.win,
+        },
+        capped: round.capped,
+        totalBet: round.totalBet,
+        totalWin: round.totalWin,
       },
-      present: async (hooks: RoundHooks, options: { turbo: boolean }) => {
-        const view = this.#view!;
-        await view.spin(result.stops, options.turbo);
-        this.#lastResult = result;
-        this.#app!.canvas.setAttribute("aria-label", describeGrid(result.grid));
-        if (result.totalWin === 0) {
-          hooks.setMessage("No win this spin.");
-          return;
-        }
-        const jingle = winSound(result.totalWin, result.totalBet);
-        if (jingle !== null) this.#sfx?.play(jingle);
-        if (result.scatterWin !== null) this.#sfx?.play("scatter", { gain: 0.8 });
-        hooks.setWin(result.totalWin, this.#reduceMotion ? 0 : winCountDuration(result.totalWin, result.totalBet));
-        view.presentWins(result, (step) => hooks.setMessage(describeStep(step, result)));
-      },
+      present: (hooks, options) => this.#present(round, hooks, options.turbo),
     };
   }
 
@@ -117,7 +145,7 @@ export class ClockworkMachine implements Machine {
   }
 
   clear(): void {
-    this.#view?.clearHighlights();
+    this.#view?.clearRound();
   }
 
   qa(): Record<string, unknown> {
@@ -125,6 +153,8 @@ export class ClockworkMachine implements Machine {
       game: this.#game,
       lastResult: this.#lastResult,
       shownGrid: () => this.#view!.shownGrid(),
+      /** The cells the screen shows a locked wild in. */
+      lockedCells: () => this.#view!.lockedCells(),
       ticker: this.#app!.ticker,
     };
   }
@@ -133,5 +163,99 @@ export class ClockworkMachine implements Machine {
     this.#app?.destroy({ removeView: true }, { children: true, texture: true });
     this.#app = null;
     this.#view = null;
+  }
+
+  // --- showing a round --------------------------------------------------------------------------
+
+  async #present(round: RoundResult, hooks: RoundHooks, turbo: boolean): Promise<void> {
+    const game = this.#game;
+    const view = this.#view!;
+    const { base } = round;
+
+    view.setStrips(game.strips);
+    const needed = game.feature === null ? null : smallestKey(game.feature.spins);
+    await view.spin(base.stops, turbo, planSpin(base.grid, game.scatter?.symbol ?? null, needed));
+    this.#lastResult = round;
+    this.#app!.canvas.setAttribute("aria-label", describeGrid(base.grid));
+
+    if (round.feature !== null) {
+      await this.#presentFeature(round, round.feature, hooks, turbo);
+      return;
+    }
+    if (round.totalWin === 0) {
+      hooks.setMessage("No win this spin.");
+      return;
+    }
+    const jingle = winSound(round.totalWin, round.totalBet);
+    if (jingle !== null) this.#sfx?.play(jingle);
+    hooks.setWin(round.totalWin, this.#reduceMotion ? 0 : winCountDuration(round.totalWin, round.totalBet));
+    view.presentWins(base, (step) => hooks.setMessage(describeStep(step, base)));
+  }
+
+  /** The opening spin's win and its scatters, then the banner, then each free spin in turn. */
+  async #presentFeature(round: RoundResult, feature: FeatureResult, hooks: RoundHooks, turbo: boolean): Promise<void> {
+    const game = this.#game;
+    const view = this.#view!;
+    const sfx = this.#sfx!;
+    const { base, totalBet } = round;
+    const scatter = game.scatter!.symbol;
+    const retriggerAt = smallestKey(game.feature!.retrigger);
+    const countUp = (win: number): number => (this.#reduceMotion ? 0 : winCountDuration(win, totalBet));
+
+    let running = base.totalWin;
+    if (base.totalWin > 0) {
+      const jingle = winSound(base.totalWin, totalBet);
+      if (jingle !== null) sfx.play(jingle);
+      hooks.setWin(running, countUp(base.totalWin));
+    }
+    sfx.play("featureStart");
+    hooks.setMessage(`Free spins! ${feature.awarded} of them, and every wild that lands stays.`);
+    await view.flashCells([...winCells(base), ...cellsShowing(base.grid, scatter)], BEAT_MS.trigger);
+
+    view.setStrips(game.feature!.strips);
+    void view.setFeatureMode(true);
+    await view.banner("FREE SPINS", `${feature.awarded} spins · wilds lock in place`, BEAT_MS.startBanner);
+
+    let granted = feature.awarded;
+    for (const [index, free] of feature.spins.entries()) {
+      const label = `Free spin ${index + 1} of ${granted}`;
+      hooks.setMessage(label);
+      await view.spin(free.spin.stops, turbo, planSpin(free.spin.grid, scatter, retriggerAt));
+      this.#app!.canvas.setAttribute("aria-label", describeGrid(free.spin.grid));
+
+      if (free.newlyLocked.length > 0) {
+        await view.lockCells(free.newlyLocked, (n) => sfx.play("cogLock", { rate: 1 + 0.06 * n }));
+      }
+      const locked = free.locked.length === 0 ? "" : ` · ${free.locked.length} ${free.locked.length === 1 ? "wild" : "wilds"} locked`;
+
+      if (free.win > 0) {
+        running += free.win;
+        const jingle = winSound(free.win, totalBet);
+        if (jingle !== null) sfx.play(jingle);
+        hooks.setWin(running, countUp(free.win));
+        hooks.setMessage(`${label}: won ${formatCredits(free.win)}${locked}`);
+        await view.flashCells(winCells(free.spin), BEAT_MS.win);
+      } else {
+        hooks.setMessage(`${label}: no win${locked}`);
+        await view.wait(BEAT_MS.noWin);
+      }
+
+      if (free.retriggered > 0) {
+        granted += free.retriggered;
+        sfx.play("retrigger");
+        await view.banner(`+${free.retriggered} SPINS`, `${granted} free spins in all`, BEAT_MS.retriggerBanner);
+      }
+    }
+
+    const jingle = winSound(feature.win, totalBet);
+    if (jingle !== null) sfx.play(jingle);
+    await view.banner(formatCredits(feature.win), "FREE SPINS WIN", BEAT_MS.endBanner);
+    await view.setFeatureMode(false);
+    hooks.setWin(round.totalWin, 0);
+    hooks.setMessage(
+      round.capped
+        ? `Free spins won ${formatCredits(feature.win)}, the most one bet can win (${formatCredits(game.maxWinMultiple! * totalBet)}).`
+        : `Free spins won ${formatCredits(feature.win)}; ${formatCredits(round.totalWin)} in all.`,
+    );
   }
 }

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { createRng, exactRtp, spin, spinFromStops } from "../src/engine/index.ts";
+import { createRng, exactRtp, playRound, spinFromStops } from "../src/engine/index.ts";
 import { classic } from "../src/games/classic.ts";
-import { createStats, record, summarize } from "../src/sim/stats.ts";
+import { estimateReturn } from "../src/sim/lineSim.ts";
+import { createStats, record } from "../src/sim/stats.ts";
 import { makeGame } from "./fixtures.ts";
 
 /** Standard errors of the simulation allowed away from the exact value. A real bug is far outside this. */
@@ -64,20 +65,35 @@ describe("exactRtp", () => {
 });
 
 describe("classic game", () => {
-  it("has an exact return to player of about 96%", () => {
-    const { total } = exactRtp(classic);
-    expect(total).toBeGreaterThan(0.95);
-    expect(total).toBeLessThan(0.97);
+  it("returns about 96% in all: an exact opening spin plus a simulated feature", { timeout: 120_000 }, () => {
+    const estimate = estimateReturn(classic, 40_000, "rtp-test-sessions");
+    expect(estimate.total).toBeGreaterThan(0.95);
+    expect(estimate.total).toBeLessThan(0.97);
+    // Split the way the design means it: most from the base game, about a third from the free spins.
+    expect(estimate.base.total).toBeGreaterThan(0.58);
+    expect(estimate.base.total).toBeLessThan(0.68);
+    expect(estimate.featureRtp).toBeGreaterThan(0.28);
+    expect(estimate.featureRtp).toBeLessThan(0.4);
+    // The feature should be a feature: rare enough to look forward to, common enough to see.
+    expect(1 / estimate.trigger).toBeGreaterThan(90);
+    expect(1 / estimate.trigger).toBeLessThan(160);
   });
 
-  it("simulates to its exact return, within sampling error", { timeout: 60_000 }, () => {
+  it("plays end to end to what the exact opening spin and the by-parts feature predict", { timeout: 180_000 }, () => {
     const rng = createRng("rtp-test");
     const stats = createStats();
-    for (let i = 0; i < 1_000_000; i++) record(stats, spin(classic, rng, 1));
+    for (let i = 0; i < 1_000_000; i++) record(stats, playRound(classic, rng, 1));
 
-    const summary = summarize(stats);
+    // The opening spin has an exact answer, and the lines inside it too.
     const exact = exactRtp(classic);
-    expect(Math.abs(summary.rtp - exact.total) / summary.rtpStdError).toBeLessThan(MAX_Z);
-    expect(Math.abs(summary.lineRtp - exact.lines) / summary.rtpStdError).toBeLessThan(MAX_Z);
+    expect(Math.abs(stats.opening.mean - exact.total) / stats.opening.standardError).toBeLessThan(MAX_Z);
+    expect(Math.abs(stats.lines.mean - exact.lines) / stats.lines.standardError).toBeLessThan(MAX_Z);
+
+    // The free spins have none (locked wilds make each spin depend on the last), so they are
+    // checked against features simulated on their own, weighted by the exact chance of each trigger.
+    const estimate = estimateReturn(classic, 100_000, "rtp-test-by-parts");
+    const standardError = Math.hypot(stats.freeSpins.standardError, estimate.featureStdError);
+    expect(Math.abs(stats.freeSpins.mean - estimate.featureRtp) / standardError).toBeLessThan(MAX_Z);
+    expect(stats.triggers).toBeGreaterThan(0);
   });
 });

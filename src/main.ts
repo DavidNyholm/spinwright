@@ -131,6 +131,8 @@ async function main(): Promise<void> {
         readouts: () => (machine()["readouts"] as () => unknown)(),
         worstOverlap: () => (machine()["worstOverlap"] as () => number)(),
         pieceStates: () => (machine()["pieceStates"] as () => unknown)(),
+        /** Clockwork's free spins: the cells the screen shows a locked wild in. */
+        lockedCells: () => (machine()["lockedCells"] as () => unknown)(),
         finishCounters: () => (machine()["finishCounters"] as () => void)(),
         /** The Forge's engine, state and a hand-cranked clock. Only meaningful while the Forge is open. */
         get forge() {

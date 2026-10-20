@@ -31,6 +31,9 @@ export const SFX_NAMES = [
   "denied",
   "ingotAppear",
   "frenzy",
+  // Clockwork's free spins
+  "cogLock",
+  "anticipation",
 ] as const;
 
 export type SfxName = (typeof SFX_NAMES)[number];

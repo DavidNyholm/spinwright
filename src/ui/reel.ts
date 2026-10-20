@@ -22,7 +22,7 @@ export interface ReelGeometry {
  */
 export class ReelView {
   readonly container = new Container();
-  readonly #strip: readonly SymbolId[];
+  #strip: readonly SymbolId[];
   readonly #textures: ReadonlyMap<SymbolId, Texture>;
   readonly #geometry: ReelGeometry;
   /** One sprite per window row, plus one for the cell sliding in at the bottom. */
@@ -68,6 +68,16 @@ export class ReelView {
     for (let k = 0; k < this.#sprites.length; k++) {
       this.#sprites[k]!.y = (base + k - position) * this.#geometry.cellHeight;
     }
+  }
+
+  /**
+   * Reads from a different strip from now on (the free spins have their own). Meant to be called as a
+   * spin begins: the symbols in view are re-read from the new strip at once, which at that moment is hidden by the blur.
+   */
+  setStrip(strip: readonly SymbolId[]): void {
+    this.#strip = strip;
+    this.#base = Number.NaN;
+    this.setPosition(this.#position);
   }
 
   /** Shifts which strip symbol sits at each index; the picture changes at once. */

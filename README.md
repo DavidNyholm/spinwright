@@ -21,7 +21,22 @@ Sound is on by default and starts at your first click or key press (browsers kee
 
 ## The machines
 
-**No. 1 Clockwork** is a five-reel, three-row, twenty-line machine with a wild and a scatter. Its return is **95.94%**, computed exactly rather than estimated, with a win on about 39% of spins.
+**No. 1 Clockwork** is a five-reel, three-row, twenty-line machine with a wild and a scatter, and a free-spins feature. Three or more scatters (blueprints) on the opening spin start it: eight free spins (twelve for four scatters, sixteen for five) in which **every wild that lands is locked in place until the feature ends**, so the board fills up spin by spin and the wins grow with it. The free spins have their own reels, which carry more scatters, and three scatters on a free spin add four more spins (to at most forty). One bet can win at most 5,000 times its size. When two scatters have landed and one more would start the feature, the remaining reels hold on, spinning, inside an amber outline: the wait is the tension. (That is staged from the grid the reels are about to land on, which is already decided, so it changes nothing about the outcome.)
+
+Measured (the return from 1,000,000 simulated features for each number of scatters, the rest over 3 million rounds):
+
+| | Clockwork |
+|---|---|
+| Return to player | 96.13% +/- 0.07% (95% CI) |
+| Of which opening-spin lines / scatters / free spins | 60.5% (exact) / 1.95% (exact) / 33.7% |
+| Free spins start | 1 in 125 spins, exactly |
+| Average feature | 39.1x the bet over 8 spins for three scatters, 96.8x over 12 for four, 186x over 16 for five |
+| Across every trigger | 42.6x the bet (sd 56x), 9.1 spins played, retriggered in 23% of features, 3.6 wilds locked at the end |
+| Hit frequency | 38.5% of rounds win something, 17% win at least the bet |
+| Volatility | sd about 6.7x the bet per round |
+| Biggest win in 3 million rounds | 1,322x the bet |
+
+The opening spin is still computed exactly. The free spins are not: locked wilds make every spin depend on the ones before, so they are measured by simulation (below). The base game's wins are smaller than they were (about one round in six now wins at least the bet, down from more than one in four), because a third of the return now lives in the feature.
 
 **No. 2 Crucible** is a six-by-five cascade machine. Groups of five or more connected gems pay and vanish, the gems above fall, and new ones drop in. Every winning step in a spin heats the furnace, and **heat multiplies the next win**: x1, x2, x3 and on up until the cascade runs dry. Four embers on the opening grid light the furnace feature: ten free spins in which heat is never reset and climbs four times as fast, with a retrigger and a hard cap of 5,000 times the bet.
 
@@ -68,6 +83,7 @@ Every sound is synthesised by code (`src/audio`), the way the artwork is drawn b
 - **Reels:** a pull as they start, a ratchet while they spin, and a thump as each one lands, a little higher in pitch than the last and panned from the left speaker to the right.
 - **Crucible:** the new fill lands as a rolling arpeggio, one note per column. Each step of a cascade plays a note one rung higher on a pentatonic ladder as the heat climbs, then a glass-shattering burst. Embers crackle, and the furnace lights with a rising roar and settles into a low rumble for the feature.
 - **Wins:** four tiers of bell jingle by size, coin ticks while the counter rolls up.
+- **Clockwork's free spins:** each scatter chimes a step higher as it lands, a rising shimmer (as long as the hold itself) plays while the reels hold on for the third, and a cog seats with a thunk, a tick and a ring as each wild locks.
 - **Forge:** a hammer on iron (a low thump under an inharmonic ring, so it sounds like metal and not a bell) that rings brighter at each heat tier, a lighter higher tap for the mainspring's hammer, gears and a chime for an upgrade, a dull thunk for a purchase you cannot afford, and bells for an ingot and a frenzy.
 - **Safety:** a limiter sits before the speakers so many sounds at once cannot clip, and the voice count is capped.
 
@@ -87,15 +103,19 @@ Honest answer: it is pseudo-random, not hardware-random, like every software slo
 ## Simulator
 
 ```bash
-npm run sim -- --spins 10_000_000                       # Clockwork
+npm run sim -- --spins 3_000_000                        # Clockwork
 npm run sim -- --game crucible --spins 4_000_000        # Crucible
 ```
 
-Clockwork has an exact answer, so the simulator compares against it:
+Clockwork's opening spin has an exact answer, so the simulator checks it directly; its free spins have none (the locked wilds make each spin depend on the last), so it reports the return two ways and requires them to agree: end to end, and as the exact chance of each trigger times the value of features simulated on their own.
 
 ```
-RTP            95.96% +/- 0.15% (95% CI)   exact 95.94%   z = 0.26  ok
-Hit frequency  39.1%  (1 in 2.6)
+RTP            96.47% +/- 0.75% (95% CI, end to end)
+  opening spin 62.30%   exact 62.41%   z = -1.10  ok
+  free spins   34.17%
+RTP by parts   96.22% +/- 0.17% (exact opening spin + exact trigger chances x 200,000 simulated features each)
+  free spins   end to end 34.17%   by parts 33.82%   z = 0.94  ok
+Trigger        1 in 124.7 simulated, 1 in 124.9 exact
 ```
 
 Crucible has no closed form (refills make every outcome a random tree), so it reports the return two ways and requires them to agree: end to end, and as the exact chance of the feature times the value of feature sessions simulated on their own.
@@ -115,7 +135,13 @@ Add `?debug` to the page address to get a QA panel: force exact reel stops on Cl
 
 ## How it is checked
 
-**Line engine.** The exact return is computed analytically and tested against full enumeration of every stop combination on a small game (agreement to 12 decimal places) and against a 1M-spin simulation of the real game. Wild substitution, scatter behaviour, runs that must start on the first reel and bet scaling each have explicit cases.
+**Line engine.** The exact return of an opening spin is computed analytically and tested against full enumeration of every stop combination on a small game (agreement to 12 decimal places) and against a 1M-round simulation of the real game. Wild substitution, scatter behaviour, runs that must start on the first reel and bet scaling each have explicit cases.
+
+**Free spins.**
+- Played by hand with a scripted random source: a wild locks where it lands, stays through later spins and is paid in wins; a wild is never locked twice; retriggers add spins up to the limit and no further; the win cap cuts the spin that reaches it and ends the feature.
+- Over 12,000 random rounds on the real game, every free spin is checked: the grid shown is what the feature's own reels landed with the locked wilds on top, its wins are those of that grid, new locks are exactly the wilds that landed in unlocked cells, locks only ever accumulate, the spin count is awarded plus retriggered and never over the limit, and a round is its opening spin plus its free spins within the cap.
+- A small game's feature is solved **exactly** by a calculation written independently of the engine (every stop on every spin, carrying locked cells, spins played and spins left), with two rows so the numbering of cells is exercised; the engine's simulated average must match it within sampling error, and a second check confirms that the answer would be far off if wilds did not lock.
+- The exact chance of a trigger is checked against enumeration of every opening grid. Which reels hold on for a scatter is a plain function with its own tests.
 
 **Cascade engine.**
 - The cluster finder is compared against a deliberately naive, independent finder (label spreading instead of flood fill) on thousands of random grids of several sizes.
@@ -126,13 +152,13 @@ Add `?debug` to the page address to get a QA panel: force exact reel stops on Cl
 
 **Animation.** Landing a reel exactly on its stop is tested for every stop, including quick stops at any moment. The fall choreography is tested against itself: across thousands of random boards, no falling piece may sink into the one above it at any moment of the animation, and a test confirms the checker would catch a bounce that grows with the fall (the bug this test was added for).
 
-**Sound.** Every sound is built deterministically and tested: samples are finite and never clip, start and end at silence, ring at the pitch asked for (measured by spectral energy), and die away rather than being cut off. Each loop must join its end to its start without a click, and a hum can only enter a loop if it makes a whole number of cycles, which the code enforces. In the browser, the sounds the views *ask for* were compared against the engine's decided result: across 98 Crucible rounds (two full furnace features) and 61 Clockwork spins, every heat note, burst, column landing, reel stop, feature sound and win jingle matched what the result called for, exactly. One path is untested: the retrigger sound, because a retrigger did not occur and cannot be forced.
+**Sound.** Every sound is built deterministically and tested: samples are finite and never clip, start and end at silence, ring at the pitch asked for (measured by spectral energy), and die away rather than being cut off. Each loop must join its end to its start without a click, and a hum can only enter a loop if it makes a whole number of cycles, which the code enforces. In the browser, the sounds the views *ask for* were compared against the engine's decided result: across 98 Crucible rounds (two full furnace features) and 61 Clockwork spins (before its free spins were added), every heat note, burst, column landing, reel stop, feature sound and win jingle matched what the result called for, exactly. That one-for-one comparison has not been repeated for Clockwork's free spins: those sounds are unit-tested for what they contain, and the request counts were looked at in a few rounds, nothing more. The Crucible's retrigger sound is still untested, because a retrigger did not occur.
 
-**In the browser.** Sixty real spins on Clockwork and four hundred on Crucible (including two full furnace features) were checked, normal and turbo, with quick stops: the picture read back from the screen equals the engine's result every time, the wallet and on-screen numbers match, and there were no page errors. The cascade animation was measured frame by frame over 120 spins (7,785 frames): the worst overlap between falling pieces is 0.1 pixel. The production build was also played from a `/spinwright/` subpath, the way GitHub Pages serves it.
+**In the browser.** Before the free spins existed, sixty real spins on Clockwork and four hundred on Crucible (including two full furnace features) were checked, normal and turbo, with quick stops: the picture read back from the screen equals the engine's result every time, the wallet and on-screen numbers match, and there were no page errors. The free spins were checked the same way over 66 rounds of Clockwork (27 with free spins, 103 locked wilds and 6 retriggers among them, in turbo and at normal speed, plus a stop pressed mid-feature): after each round the reels showed exactly the window the engine landed, the cogs on screen were exactly the cells it locked, and the win readout, balance and wallet reconciled. The cascade animation was measured frame by frame over 120 spins (7,785 frames): the worst overlap between falling pieces is 0.1 pixel. The production build was also played from a `/spinwright/` subpath, the way GitHub Pages serves it.
 
-**The Forge.** The rules engine is played in tests with an explicit clock and a seeded generator: heat tiers and draining, the mainspring's winding, idle delay, run-down and capacity, the carry that makes part-credits pay out exactly, ingot timing, windfall and frenzy (including that the mainspring's strikes are multiplied too), purchases, refusals when short of credits, and saving and loading (including damaged saves). The upgrade cards are tested against the engine, so a card cannot describe a number the Forge does not use. The hammer's swing (one impact per strike, no jump when strikes come faster than it lifts), the sparks, the floating numbers and the colour of hot iron are plain functions with their own tests. The router and the lobby's catalog are tested too, including that the return figures the lobby quotes match the engines (Clockwork exactly, Crucible within a point of the economy test). The Forge's pages were driven in a real browser: real clicks on the ingot, the anvil and the buttons (an ingot click does not also strike), purchases, the mainspring running down, ingots appearing, saved progress surviving a reload, the out-of-credits banner, and leaving a machine mid-spin; it was also checked at phone width.
+**The Forge.** The rules engine is played in tests with an explicit clock and a seeded generator: heat tiers and draining, the mainspring's winding, idle delay, run-down and capacity, the carry that makes part-credits pay out exactly, ingot timing, windfall and frenzy (including that the mainspring's strikes are multiplied too), purchases, refusals when short of credits, and saving and loading (including damaged saves). The upgrade cards are tested against the engine, so a card cannot describe a number the Forge does not use. The hammer's swing (one impact per strike, no jump when strikes come faster than it lifts), the sparks, the floating numbers and the colour of hot iron are plain functions with their own tests. The router and the lobby's catalog are tested too, including that the return figures the lobby quotes match the engines (each within sampling error of a fresh simulation). The Forge's pages were driven in a real browser: real clicks on the ingot, the anvil and the buttons (an ingot click does not also strike), purchases, the mainspring running down, ingots appearing, saved progress surviving a reload, the out-of-credits banner, and leaving a machine mid-spin; it was also checked at phone width.
 
-**Tests against deliberate bugs.** Fifty-four injected bugs across both engines, the Forge, the motion code and the sound code (a loop crossfade run backwards, a hum that does not fit its loop, a sound normalised past clipping, a bell on the wrong note, modulo bias, a non-wrapping reel window, wilds not extending runs, a wrong RTP divisor, scatter paid on the wrong bet, a wrong landing offset, heat that never rises, a reversed refill order, a cluster finder that ignores one neighbour, a feature that needs one scatter too many, heat that resets between feature spins, a missing win cap, a hammer that never reaches the iron, sparks thrown downward, floating numbers that never fade, a card quoting the next level's value, a wallet that lets credits go negative, a router that opens unknown machines, and more) were each caught by the suite. (A fifty-fifth changed nothing, and showed a line of the router to be redundant; the line was removed.)
+**Tests against deliberate bugs.** Seventy-three injected bugs across both engines, the free spins, the Forge, the motion code and the sound code (a loop crossfade run backwards, a hum that does not fit its loop, a sound normalised past clipping, a bell on the wrong note, modulo bias, a non-wrapping reel window, wilds not extending runs, a wrong RTP divisor, scatter paid on the wrong bet, a wrong landing offset, heat that never rises, a reversed refill order, a cluster finder that ignores one neighbour, a feature that needs one scatter too many, heat that resets between feature spins, a missing win cap, a hammer that never reaches the iron, sparks thrown downward, floating numbers that never fade, a card quoting the next level's value, a wallet that lets credits go negative, a router that opens unknown machines, wilds that do not lock, a locked cell drawn in the wrong place, a retrigger that ignores the spin limit, a win cap that does not cap, free spins played on the base reels, a reel that never holds on for a scatter, and more) were each caught by the suite. (A fifty-fifth changed nothing, and showed a line of the router to be redundant; the line was removed.)
 
 ## Layout
 
@@ -145,7 +171,7 @@ src/forge/            the Forge's rules (config, engine, card text): no drawing 
 src/app/               wallet, saved preferences, routes, the lobby catalog, the Machine interface (no drawing code)
 src/pages/             the pages: top bar, lobby, slot machine, Forge
 src/machines/          Clockwork and Crucible: a game plus its look and motion
-src/ui/                PixiJS reels, cascade view, forge scene, animator, HUD, QA panel
+src/ui/                PixiJS reels, locked-wild layer, cascade view, forge scene, animator, HUD, QA panel
 src/ui/art/            the artwork: palette, metal helpers, both symbol sets, reel bed
 src/audio/             sound synthesis, the recipes for every sound, and the Web Audio player
 test/                  Vitest suite
