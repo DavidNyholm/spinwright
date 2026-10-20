@@ -3,7 +3,7 @@ import { nextInt } from "./rng.ts";
 import type { Rng } from "./rng.ts";
 import type { GameConfig, SpinResult, SymbolId } from "./types.ts";
 
-function checkLineBet(lineBet: number): void {
+export function checkLineBet(lineBet: number): void {
   if (!Number.isInteger(lineBet) || lineBet < 1) {
     throw new RangeError(`lineBet must be a positive integer number of credits, got ${lineBet}`);
   }

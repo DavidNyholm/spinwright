@@ -78,6 +78,8 @@ export const classic = defineGame({
     ],
     retrigger: { 3: 4 },
     maxSpins: 40,
+    // Three scatters' feature is worth 39.1x the bet on average, so 41x returns 95.5%: a little under the machine itself.
+    buyCost: 41,
   },
   maxWinMultiple: 5_000,
 });

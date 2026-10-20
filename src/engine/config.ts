@@ -128,6 +128,9 @@ export function findConfigProblems(config: GameConfig): string[] {
     if (!Number.isInteger(feature.maxSpins) || feature.maxSpins < largestAward) {
       problems.push(`feature.maxSpins (${feature.maxSpins}) must be an integer of at least the largest award (${largestAward})`);
     }
+    if (feature.buyCost !== null && (!Number.isInteger(feature.buyCost) || feature.buyCost < 1)) {
+      problems.push(`feature.buyCost must be a positive integer or null, got ${feature.buyCost}`);
+    }
   }
 
   return problems;

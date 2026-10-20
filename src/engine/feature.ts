@@ -2,7 +2,7 @@ import { lookupPay } from "./config.ts";
 import { evaluateGrid } from "./evaluate.ts";
 import { nextInt } from "./rng.ts";
 import type { Rng } from "./rng.ts";
-import { buildGrid, spin, spinFromStops } from "./spin.ts";
+import { buildGrid, checkLineBet, spin, spinFromStops } from "./spin.ts";
 import type { GameConfig, Position, SpinResult, SymbolId } from "./types.ts";
 
 /** One free spin. */
@@ -152,6 +152,40 @@ export function playRound(config: GameConfig, rng: Rng, lineBet: number): RoundR
 /** The same, with the opening spin's stops chosen (for QA and tests); the free spins are still drawn from `rng`. */
 export function playRoundFromStops(config: GameConfig, rng: Rng, stops: readonly number[], lineBet: number): RoundResult {
   return finishRound(config, rng, spinFromStops(config, stops, lineBet));
+}
+
+/** A feature bought outright: no opening spin, only the free spins, as if the fewest scatters that trigger it had landed. */
+export interface BoughtFeature {
+  readonly lineBet: number;
+  readonly totalBet: number;
+  /** What it cost, in credits. */
+  readonly price: number;
+  readonly feature: FeatureResult;
+  /** What the feature won, never more than the cap. */
+  readonly totalWin: number;
+  readonly capped: boolean;
+}
+
+/** The fewest scatters that start the feature. */
+export function smallestTrigger(config: GameConfig): number {
+  if (config.feature === null) throw new Error(`${config.id} has no feature`);
+  return Math.min(...Object.keys(config.feature.spins).map(Number));
+}
+
+/** What buying the feature costs at this bet, in credits, or null if the game's feature cannot be bought. */
+export function featurePrice(config: GameConfig, lineBet: number): number | null {
+  const buyCost = config.feature?.buyCost ?? null;
+  return buyCost === null ? null : buyCost * lineBet * config.paylines.length;
+}
+
+/** Buys the feature and plays it. The outcome, every free spin of it, is final before anything is shown. */
+export function buyFeature(config: GameConfig, rng: Rng, lineBet: number): BoughtFeature {
+  checkLineBet(lineBet);
+  const price = featurePrice(config, lineBet);
+  if (price === null) throw new Error(`${config.id}'s feature cannot be bought`);
+  const totalBet = lineBet * config.paylines.length;
+  const feature = playFeature(config, rng, lineBet, spinsAwarded(config, smallestTrigger(config)), winCap(config, totalBet));
+  return { lineBet, totalBet, price, feature, totalWin: feature.win, capped: feature.capped };
 }
 
 /**

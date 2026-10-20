@@ -5,8 +5,8 @@ export { evaluateGrid, evaluateLine } from "./evaluate.ts";
 export type { GridEvaluation, LineEvaluation } from "./evaluate.ts";
 export { createCryptoRng, createRng, nextInt, randomSeed } from "./rng.ts";
 export type { Rng } from "./rng.ts";
-export { countSymbol, playFeatureSession, playRound, playRoundFromStops, spinsAwarded } from "./feature.ts";
-export type { FeatureResult, FeatureSpin, RoundResult } from "./feature.ts";
+export { buyFeature, countSymbol, featurePrice, playFeatureSession, playRound, playRoundFromStops, smallestTrigger, spinsAwarded } from "./feature.ts";
+export type { BoughtFeature, FeatureResult, FeatureSpin, RoundResult } from "./feature.ts";
 export { buildGrid, spin, spinFromStops } from "./spin.ts";
 export type {
   FeatureConfig,

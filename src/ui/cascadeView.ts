@@ -4,7 +4,7 @@ import type { RoundHooks } from "../app/machine.ts";
 import { heatSemitones, panFor, semitoneRate, winSound } from "../audio/sfx.ts";
 import type { LoopHandle, Sfx } from "../audio/sfx.ts";
 import { columnFall } from "../engine/cascade/index.ts";
-import type { CascadeConfig, CascadeResult, CascadeStep, RoundResult } from "../engine/cascade/index.ts";
+import type { BoughtFeature, CascadeConfig, CascadeResult, CascadeStep, RoundResult } from "../engine/cascade/index.ts";
 import type { SymbolId } from "../engine/index.ts";
 import { Animator, easeInOutSine, easeOutCubic } from "./animator.ts";
 import { verticalGradient } from "./art/metal.ts";
@@ -231,6 +231,19 @@ export class CascadeView {
 
   /** Plays a whole result: the base spin and, if there is one, the furnace feature. */
   async present(result: CascadeResult, hooks: RoundHooks, options: { turbo: boolean }): Promise<void> {
+    await this.#show({ base: result.base, feature: result.feature, totalBet: result.totalBet, totalWin: result.totalWin, capped: result.capped }, hooks, options);
+  }
+
+  /** Plays a bought feature: the furnace's spins and nothing before them. */
+  async presentBought(bought: BoughtFeature, hooks: RoundHooks, options: { turbo: boolean }): Promise<void> {
+    await this.#show({ base: null, feature: bought.feature, totalBet: bought.totalBet, totalWin: bought.totalWin, capped: bought.capped }, hooks, options);
+  }
+
+  async #show(
+    play: { base: RoundResult | null; feature: readonly RoundResult[] | null; totalBet: number; totalWin: number; capped: boolean },
+    hooks: RoundHooks,
+    options: { turbo: boolean },
+  ): Promise<void> {
     this.animator.speed = options.turbo || this.#reduceMotion ? TURBO_SPEED : 1;
     this.clear();
     const feature = this.#config.feature;
@@ -241,17 +254,18 @@ export class CascadeView {
     };
 
     try {
-      await this.#playRound(result.base, hooks, credit, false);
+      if (play.base !== null) await this.#playRound(play.base, hooks, credit, false);
 
-      if (result.feature !== null && feature !== null) {
+      if (play.feature !== null && feature !== null) {
         this.#sfx.play("featureStart");
-        await this.#pulseEmbers();
+        // The embers that lit the furnace pulse; a bought furnace had no embers to show.
+        if (play.base !== null) await this.#pulseEmbers();
         await this.#showBanner("FURNACE LIT", `${feature.spins} FREE SPINS · HEAT CARRIES OVER`, TIMING.banner);
         this.#setCaption(true, "");
         this.#furnaceLoop = this.#sfx.loop("furnaceLoop", { gain: 0.45 });
         let totalSpins: number = feature.spins;
         const before = running;
-        for (const [index, round] of result.feature.entries()) {
+        for (const [index, round] of play.feature.entries()) {
           this.#setCaption(true, `FURNACE  SPIN ${index + 1} / ${totalSpins}`);
           await this.#playRound(round, hooks, credit, true);
           if (feature.retrigger !== null && round.scatters >= feature.retrigger.count && !round.capped) {
@@ -262,17 +276,17 @@ export class CascadeView {
         }
         this.#furnaceLoop?.stop(0.4);
         this.#furnaceLoop = null;
-        const jingle = winSound(running - before, result.totalBet);
+        const jingle = winSound(running - before, play.totalBet);
         if (jingle !== null) this.#sfx.play(jingle);
         await this.#showBanner("FURNACE COMPLETE", `FEATURE WON ${formatCredits(running - before)}`, TIMING.banner);
         this.#setCaption(false, "");
       } else {
         // A win with no feature gets a jingle if it is worth one; the small ones already had their bursts.
-        const jingle = winSound(result.totalWin, result.totalBet);
+        const jingle = winSound(play.totalWin, play.totalBet);
         if (jingle !== null && jingle !== "winTiny") this.#sfx.play(jingle);
       }
-      if (result.capped) this.#sfx.play("winHuge");
-      if (result.capped) await this.#showBanner("MAXIMUM WIN", `${formatCredits(this.#config.maxWinMultiple)}× YOUR BET`, TIMING.banner);
+      if (play.capped) this.#sfx.play("winHuge");
+      if (play.capped) await this.#showBanner("MAXIMUM WIN", `${formatCredits(this.#config.maxWinMultiple)}× YOUR BET`, TIMING.banner);
     } finally {
       this.animator.speed = 1;
       this.#furnaceLoop?.stop(0.2);

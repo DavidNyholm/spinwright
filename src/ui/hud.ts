@@ -73,6 +73,8 @@ export interface HudHandlers {
   onWinTick?(): void;
   /** Whether the machine page is the one on screen; Space and Enter only spin then. */
   isActive(): boolean;
+  /** The player pressed the buy button; the page decides whether to go on. */
+  onBonusRequest(): void;
 }
 
 /** The controls and readouts around the reels. Holds no game logic. */
@@ -87,7 +89,12 @@ export class Hud {
   readonly #betUp = byId<HTMLButtonElement>("bet-up");
   readonly #turbo = byId<HTMLInputElement>("turbo");
   readonly #broke = byId("broke");
-  readonly #state = { ready: false, spinning: false, broke: false, canDecrease: false, canIncrease: false };
+  readonly #bonusBar = byId("bonus-bar");
+  readonly #bonusButton = byId<HTMLButtonElement>("bonus-buy");
+  readonly #bonusPrice = byId("bonus-price");
+  readonly #bonusName = byId("bonus-name");
+  readonly #dialog = byId<HTMLDialogElement>("bonus-dialog");
+  readonly #state = { ready: false, spinning: false, broke: false, canDecrease: false, canIncrease: false, bonus: false, bonusAffordable: false };
 
   constructor(handlers: HudHandlers) {
     this.#balance = new Counter(byId("balance"));
@@ -96,6 +103,7 @@ export class Hud {
     this.#betDown.addEventListener("click", () => handlers.onBetStep(-1));
     this.#betUp.addEventListener("click", () => handlers.onBetStep(1));
     this.#turbo.addEventListener("change", () => handlers.onTurbo(this.#turbo.checked));
+    this.#bonusButton.addEventListener("click", () => handlers.onBonusRequest());
 
     // Space or Enter spins, unless a control has focus (it would also fire that control's own click).
     document.addEventListener("keydown", (event) => {
@@ -157,6 +165,32 @@ export class Hud {
     this.#apply();
   }
 
+  /**
+   * Shows the buy bar for a machine whose bonus costs `price`, or hides it for one with nothing to buy.
+   * `affordable` is whether the balance covers it.
+   */
+  setBonus(price: number | null, name: string | null, affordable: boolean): void {
+    this.#state.bonus = price !== null;
+    this.#state.bonusAffordable = affordable;
+    if (price !== null && name !== null) {
+      this.#bonusName.textContent = name;
+      this.#bonusPrice.textContent = `· ${formatCredits(price)}`;
+    }
+    this.#apply();
+  }
+
+  /** Asks the player to confirm buying the bonus. Resolves true only if they chose to buy. */
+  confirmBonus(name: string, price: number): Promise<boolean> {
+    byId("bonus-dialog-title").textContent = `Buy the ${name}?`;
+    byId("bonus-dialog-body").textContent = `This costs ${formatCredits(price)} credits and starts the ${name} at once.`;
+    byId("bonus-confirm").textContent = `Buy for ${formatCredits(price)}`;
+    this.#dialog.returnValue = "";
+    return new Promise((resolve) => {
+      this.#dialog.addEventListener("close", () => resolve(this.#dialog.returnValue === "buy"), { once: true });
+      this.#dialog.showModal();
+    });
+  }
+
   setTurbo(on: boolean): void {
     this.#turbo.checked = on;
   }
@@ -167,7 +201,7 @@ export class Hud {
 
   /** Derives every control's enabled state from one place, so they cannot drift apart. */
   #apply(): void {
-    const { ready, spinning, broke, canDecrease, canIncrease } = this.#state;
+    const { ready, spinning, broke, canDecrease, canIncrease, bonus, bonusAffordable } = this.#state;
     this.#spin.textContent = spinning ? "STOP" : "SPIN";
     this.#spin.dataset.spinning = String(spinning);
     this.#spin.disabled = !ready || broke;
@@ -175,5 +209,7 @@ export class Hud {
     this.#betUp.disabled = spinning || !canIncrease;
     this.#turbo.disabled = spinning;
     this.#broke.hidden = !broke;
+    this.#bonusBar.hidden = !bonus;
+    this.#bonusButton.disabled = !ready || spinning || !bonusAffordable;
   }
 }

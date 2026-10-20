@@ -62,6 +62,9 @@ export function runCascadeSim(config: CascadeConfig, options: CascadeSimOptions)
       `  feature      end to end ${percent(stats.feature.mean)}   by parts ${percent(featureByParts)}   z = ${z.toFixed(2)}  ${agrees ? "ok" : "MISMATCH"}`,
       `Trigger        ${oneIn(stats.triggers / plays)} simulated, ${oneIn(trigger)} exact`,
       `Feature        ${session.mean.toFixed(1)}x total bet on average (sd ${Math.sqrt(session.variance).toFixed(1)}x), ${(stats.featureSpins / Math.max(1, stats.triggers)).toFixed(1)} spins each`,
+      config.feature.buyCost === null
+        ? "Bonus buy      none"
+        : `Bonus buy      costs ${config.feature.buyCost}x the total bet; a bought feature is worth ${session.mean.toFixed(1)}x, so it returns ${percent(session.mean / config.feature.buyCost)} (+/- ${percent((1.96 * session.standardError) / config.feature.buyCost)})`,
     );
   }
 

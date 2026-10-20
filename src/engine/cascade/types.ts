@@ -39,6 +39,11 @@ export interface FeatureConfig {
   readonly maxSpins: number;
   /** Heat added after each winning step during the feature, or null to use the base game's step. */
   readonly heatStep: number | null;
+  /**
+   * What buying the feature outright costs, as a multiple of the total bet, or null if it cannot be
+   * bought. The price is chosen from the feature's measured average value (see src/sim), so a buy returns about what a spin does.
+   */
+  readonly buyCost: number | null;
 }
 
 export interface HeatConfig {
@@ -96,6 +101,18 @@ export interface CascadeResult {
   /** Credits won over the whole play, base spin and feature together. */
   readonly totalWin: number;
   /** True if the win cap ended the play early. */
+  readonly capped: boolean;
+}
+
+/** A feature bought outright: no base spin, only the feature's spins. */
+export interface BoughtFeature {
+  readonly unitBet: number;
+  readonly totalBet: number;
+  /** What it cost, in credits. */
+  readonly price: number;
+  readonly feature: readonly RoundResult[];
+  /** What the feature won, never more than the cap. */
+  readonly totalWin: number;
   readonly capped: boolean;
 }
 

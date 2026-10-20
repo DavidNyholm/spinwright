@@ -1055,3 +1055,104 @@ a.brass-button:focus-visible {
     transform: none;
   }
 }
+
+/* --- buying a bonus ------------------------------------------------------------------------- */
+
+.bonus {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 16px 8px 0;
+  padding: 10px 14px;
+  border: 1px dashed var(--brass-dark);
+  border-radius: 10px;
+  background: rgba(255, 179, 71, 0.05);
+}
+
+.bonus-text {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.bonus-text strong {
+  color: var(--text);
+}
+
+.bonus .brass-button {
+  padding: 8px 14px;
+  font-size: 0.95rem;
+}
+
+.bonus .brass-button:disabled {
+  box-shadow: none;
+}
+
+/* The question before a purchase: a native dialog, so focus is trapped and Escape cancels. */
+.dialog {
+  width: min(92vw, 440px);
+  padding: 22px 24px;
+  border: 2px solid var(--brass-dark);
+  border-radius: 16px;
+  background: linear-gradient(180deg, var(--iron-hi), var(--iron-lo));
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.8);
+  color: var(--text);
+}
+
+.dialog::backdrop {
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.dialog h2 {
+  margin: 0 0 10px;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 1.5rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--brass-light);
+}
+
+.dialog p {
+  margin: 0 0 12px;
+  font-size: 0.88rem;
+}
+
+.dialog p.dialog-note {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.plain-button {
+  padding: 10px 16px;
+  border: 1px solid var(--brass-dark);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.plain-button:hover {
+  border-color: var(--brass);
+}
+
+@media (max-width: 760px) {
+  .bonus {
+    flex-direction: column;
+    align-items: stretch;
+    margin: 14px 0 0;
+    text-align: center;
+  }
+}

@@ -1,4 +1,4 @@
-import { createRng, exactRtp, openingScatterProbabilities, playFeatureSession, playRound, spinsAwarded, triggerProbability } from "../engine/index.ts";
+import { createRng, exactRtp, openingScatterProbabilities, playFeatureSession, playRound, smallestTrigger, spinsAwarded, triggerProbability } from "../engine/index.ts";
 import type { ExactRtp, GameConfig } from "../engine/index.ts";
 import { Running } from "./running.ts";
 import { createStats, record, WIN_BANDS } from "./stats.ts";
@@ -94,6 +94,8 @@ export function runLineSim(config: GameConfig, options: LineSimOptions): { repor
     const featureAgrees = Math.abs(featureZ) <= MAX_Z;
     agrees &&= featureAgrees;
     const triggers = Math.max(1, stats.triggers);
+    const buyCost = config.feature.buyCost;
+    const bought = estimate.perCount.find((part) => part.scatters === smallestTrigger(config));
     lines.push(
       `  free spins   ${percent(stats.freeSpins.mean)}`,
       `RTP by parts   ${percent(estimate.total)} +/- ${percent(1.96 * estimate.featureStdError)} (exact opening spin + exact trigger chances x ${count(sessions)} simulated features each)`,
@@ -105,6 +107,9 @@ export function runLineSim(config: GameConfig, options: LineSimOptions): { repor
       ),
       `Free spins     ${stats.perFeature.mean.toFixed(1)}x total bet per feature (sd ${Math.sqrt(stats.perFeature.variance).toFixed(1)}x), ${(stats.freeSpinsPlayed / triggers).toFixed(1)} spins played, ` +
         `retriggered in ${percent(stats.retriggers / triggers, 1)} of features, ${(stats.lockedAtEnd / triggers).toFixed(1)} wilds locked at the end`,
+      buyCost === null || bought === undefined
+        ? "Bonus buy      none"
+        : `Bonus buy      costs ${buyCost}x the total bet; a bought feature is worth ${bought.value.mean.toFixed(1)}x, so it returns ${percent(bought.value.mean / buyCost)} (+/- ${percent((1.96 * bought.value.standardError) / buyCost)})`,
     );
   }
 

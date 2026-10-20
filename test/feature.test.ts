@@ -51,6 +51,7 @@ const demo = makeGame({
     ],
     retrigger: { 2: 2 },
     maxSpins: 5,
+    buyCost: null,
   },
 });
 /** Opening stops that show S, S, A: two scatters, so the feature starts with three spins. */
@@ -276,6 +277,7 @@ describe("the exact trigger chance", () => {
       strips: [["A", "W", "B"], ["W", "A", "S"], ["B", "W", "S"]],
       retrigger: { 3: 1 },
       maxSpins: 6,
+      buyCost: null,
     },
   });
 
@@ -389,6 +391,7 @@ describe("a feature solved exactly", () => {
       ],
       retrigger: { 2: 1 },
       maxSpins: 5,
+      buyCost: null,
     },
   });
 
@@ -420,7 +423,7 @@ describe("a feature solved exactly", () => {
 describe("feature configuration", () => {
   const strips = Array.from({ length: 5 }, () => ["A", "B", "C", "W", "S"]);
   const withFeature = (feature: Partial<NonNullable<GameConfig["feature"]>> = {}, rest: Partial<GameConfig> = {}): GameConfig =>
-    rawGame({ feature: { spins: { 3: 8 }, strips, retrigger: { 3: 4 }, maxSpins: 20, ...feature }, ...rest });
+    rawGame({ feature: { spins: { 3: 8 }, strips, retrigger: { 3: 4 }, maxSpins: 20, buyCost: null, ...feature }, ...rest });
 
   it("accepts a sound feature, and the shipped game", () => {
     expect(findConfigProblems(withFeature())).toEqual([]);

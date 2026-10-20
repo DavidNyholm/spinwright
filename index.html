@@ -84,7 +84,27 @@
               </label>
             </div>
           </section>
+
+          <div class="bonus" id="bonus-bar" hidden>
+            <p class="bonus-text"><strong>Skip the wait.</strong> Buy the <span id="bonus-name">free spins</span> straight away.</p>
+            <button id="bonus-buy" class="brass-button" type="button" disabled>Buy bonus <span id="bonus-price"></span></button>
+          </div>
         </div>
+
+        <dialog id="bonus-dialog" class="dialog" aria-labelledby="bonus-dialog-title">
+          <form method="dialog">
+            <h2 id="bonus-dialog-title">Buy the bonus?</h2>
+            <p id="bonus-dialog-body"></p>
+            <p class="dialog-note">
+              Most buys pay back less than they cost, and a few pay back far more. On average a buy returns a little under its price,
+              much as a spin does.
+            </p>
+            <div class="dialog-actions">
+              <button value="cancel" class="plain-button">Cancel</button>
+              <button value="buy" id="bonus-confirm" class="brass-button">Buy</button>
+            </div>
+          </form>
+        </dialog>
 
         <div id="broke" class="broke" hidden>
           <p>Out of credits. The Forge earns more, and it is free.</p>

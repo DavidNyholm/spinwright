@@ -63,6 +63,7 @@ export class MachinePage {
       },
       onWinTick: () => sfx.play("coin", { gain: 0.8 }),
       isActive: () => this.#active,
+      onBonusRequest: () => void this.#handleBonus(),
     });
     this.#hud.setTurbo(prefs.turbo);
     this.#hud.setMessage("Loading…");
@@ -107,7 +108,7 @@ export class MachinePage {
     this.#debug = this.#deps.debugMode ? createDebugPanel({ seed: this.#deps.seed, stopLimits: next.forcedStopLimits }) : null;
     this.#loading = false;
     this.#refreshBet();
-    this.#refreshBroke();
+    this.#refreshMoney();
     this.#hud.setBalance(this.#deps.wallet.balance);
     this.#hud.setWin(0);
     this.#hud.setMessage(next.idleMessage);
@@ -143,11 +144,17 @@ export class MachinePage {
       index > 0,
       index < LEVELS.length - 1,
     );
+    this.#refreshMoney();
   }
 
-  #refreshBroke(): void {
-    if (this.#machine === null) return;
-    this.#hud.setBroke(!this.#deps.wallet.canAfford(LEVELS[0]! * this.#machine.units));
+  /** Everything on the page that depends on the balance or the bet: the out-of-credits banner and the buy bar. */
+  #refreshMoney(): void {
+    const machine = this.#machine;
+    if (machine === null) return;
+    const { wallet, prefs } = this.#deps;
+    this.#hud.setBroke(!wallet.canAfford(LEVELS[0]! * machine.units));
+    const price = machine.bonusPrice(prefs.unitBet);
+    this.#hud.setBonus(price, machine.bonusName, price !== null && wallet.canAfford(price));
   }
 
   #stepBet(direction: -1 | 1): void {
@@ -182,10 +189,28 @@ export class MachinePage {
       machine.quickStop();
       return;
     }
-    void this.#playRound(machine);
+    void this.#playRound(machine, false);
   }
 
-  async #playRound(current: Machine): Promise<void> {
+  /** The buy button: ask first, because a buy costs many times a spin, then play the bonus like any other round. */
+  async #handleBonus(): Promise<void> {
+    const machine = this.#machine;
+    if (machine === null || this.#loading || this.#busy || machine.bonusName === null) return;
+    const price = machine.bonusPrice(this.#deps.prefs.unitBet);
+    if (price === null) return;
+    const generation = this.#generation;
+    if (!this.#deps.wallet.canAfford(price)) {
+      this.#hud.setMessage(`The ${machine.bonusName} cost ${formatCredits(price)}; you have ${formatCredits(this.#deps.wallet.balance)}.`);
+      return;
+    }
+    const confirmed = await this.#hud.confirmBonus(machine.bonusName, price);
+    // The visitor may have left, or started a spin, while the question was open.
+    if (!confirmed || generation !== this.#generation || this.#busy) return;
+    this.#deps.sfx.play("upgrade");
+    void this.#playRound(machine, true);
+  }
+
+  async #playRound(current: Machine, bonus: boolean): Promise<void> {
     const { wallet, prefs, rng, reduceMotion } = this.#deps;
     const hud = this.#hud;
     const generation = this.#generation;
@@ -198,13 +223,14 @@ export class MachinePage {
     try {
       hud.finishCounters();
       current.clear();
-      const totalBet = prefs.unitBet * current.units;
+      const totalBet = bonus ? (current.bonusPrice(prefs.unitBet) ?? 0) : prefs.unitBet * current.units;
       if (!wallet.canAfford(totalBet)) {
-        this.#lowerBetToFit(current.units);
+        if (bonus) hud.setMessage("Not enough credits for the bonus.");
+        else this.#lowerBetToFit(current.units);
         return;
       }
 
-      const planned = current.plan(prefs.unitBet, rng, this.#debug?.forcedStops() ?? null);
+      const planned = bonus ? current.planBonus(prefs.unitBet, rng) : current.plan(prefs.unitBet, rng, this.#debug?.forcedStops() ?? null);
       // The outcome is final here: bank it now, and only reveal it as the machine plays it out.
       // (So leaving the page mid-spin loses nothing: the win is already in the wallet.)
       wallet.settle(planned.totalBet, planned.totalWin);
@@ -229,7 +255,7 @@ export class MachinePage {
       if (generation === this.#generation) {
         this.#busy = false;
         hud.setSpinning(false);
-        this.#refreshBroke();
+        this.#refreshMoney();
         document.body.dataset["state"] = "idle";
       }
     }

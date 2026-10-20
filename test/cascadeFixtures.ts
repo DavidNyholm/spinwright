@@ -20,7 +20,7 @@ export const TOY: CascadeConfig = {
   minCluster: 3,
   units: 4,
   scatter: "S",
-  feature: { trigger: 2, spins: 3, retrigger: { count: 2, spins: 2 }, maxSpins: 8, heatStep: null },
+  feature: { trigger: 2, spins: 3, retrigger: { count: 2, spins: 2 }, maxSpins: 8, heatStep: null, buyCost: null },
   heat: { start: 1, step: 1, max: 4 },
   maxWinMultiple: 1_000,
 };

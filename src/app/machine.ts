@@ -33,11 +33,20 @@ export interface Machine {
   /** Reel counts for the QA panel's forced stops, or null if the machine cannot force an outcome. */
   readonly forcedStopLimits: readonly number[] | null;
   readonly idleMessage: string;
+  /** What the machine's bonus is called in the buy bar ("free spins"), or null if it has none to buy. */
+  readonly bonusName: string | null;
 
   /** Builds the machine's stage inside `host` and returns its size in stage units. */
   mount(host: HTMLElement, options: { reduceMotion: boolean; sfx: Sfx }): Promise<{ width: number; height: number }>;
   /** Decides a round without drawing anything. `forcedStops` is QA-only and may be ignored. */
   plan(unitBet: number, rng: Rng, forcedStops: readonly number[] | null): PlannedRound;
+  /** What buying the bonus costs at this bet, in credits, or null if the machine has none to buy. */
+  bonusPrice(unitBet: number): number | null;
+  /**
+   * Decides a bought bonus without drawing anything, as `plan` does for a spin. The round's `totalBet`
+   * is the price, so the page settles it like any other bet.
+   */
+  planBonus(unitBet: number, rng: Rng): PlannedRound;
   /** Brings a running round to its end quickly. */
   quickStop(): void;
   /** Clears any win highlights left on screen, because a new round is starting. */

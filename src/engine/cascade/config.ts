@@ -89,6 +89,7 @@ export function findCascadeConfigProblems(config: CascadeConfig): string[] {
       problems.push("feature.maxSpins must be an integer at least feature.spins");
     }
     if (feature.heatStep !== null && !isPositiveInt(feature.heatStep)) problems.push("feature.heatStep must be a positive integer or null");
+    if (feature.buyCost !== null && !isPositiveInt(feature.buyCost)) problems.push("feature.buyCost must be a positive integer or null");
     if (feature.retrigger !== null) {
       if (!isPositiveInt(feature.retrigger.count) || feature.retrigger.count > cells) {
         problems.push(`feature.retrigger.count must be an integer in [1, ${cells}]`);

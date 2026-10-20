@@ -3,8 +3,8 @@ import type { Machine, PlannedRound, RoundHooks } from "../app/machine.ts";
 import { winSound } from "../audio/sfx.ts";
 import type { Sfx } from "../audio/sfx.ts";
 import { winCountDuration } from "../app/winCount.ts";
-import { buildGrid, playRound, playRoundFromStops } from "../engine/index.ts";
-import type { FeatureResult, GameConfig, Position, Rng, RoundResult, SpinResult } from "../engine/index.ts";
+import { buildGrid, buyFeature, featurePrice, playRound, playRoundFromStops } from "../engine/index.ts";
+import type { BoughtFeature, FeatureResult, GameConfig, Position, Rng, RoundResult, SpinResult } from "../engine/index.ts";
 import { formatCredits } from "../ui/hud.ts";
 import { LAYOUT, stageSize } from "../ui/layout.ts";
 import { planSpin } from "../ui/spinPlan.ts";
@@ -52,6 +52,15 @@ function cellsShowing(grid: readonly (readonly string[])[], symbol: string): Pos
   return cells;
 }
 
+/** What the feature sequence needs: the feature, what it was worth, and the opening spin that started it (none if it was bought). */
+interface FeaturePlay {
+  readonly base: SpinResult | null;
+  readonly feature: FeatureResult;
+  readonly totalBet: number;
+  readonly totalWin: number;
+  readonly capped: boolean;
+}
+
 /** The smallest count in a pay-table-like record: how many scatters it takes. */
 const smallestKey = (table: Readonly<Record<number, number>>): number => Math.min(...Object.keys(table).map(Number));
 
@@ -67,19 +76,21 @@ export class ClockworkMachine implements Machine {
   readonly unitName = "line";
   readonly forcedStopLimits: readonly number[];
   readonly idleMessage: string;
+  readonly bonusName: string | null;
 
   readonly #game: GameConfig;
   #app: Application | null = null;
   #view: SlotView | null = null;
   #reduceMotion = false;
   #sfx: Sfx | null = null;
-  #lastResult: RoundResult | null = null;
+  #lastResult: RoundResult | BoughtFeature | null = null;
 
   constructor(game: GameConfig) {
     this.#game = game;
     this.id = game.id;
     this.units = game.paylines.length;
     this.forcedStopLimits = game.strips.map((strip) => strip.length);
+    this.bonusName = game.feature?.buyCost == null ? null : "free spins";
     this.idleMessage =
       game.feature === null
         ? "Press spin, or hit Space, to play."
@@ -140,6 +151,36 @@ export class ClockworkMachine implements Machine {
     };
   }
 
+  bonusPrice(unitBet: number): number | null {
+    return featurePrice(this.#game, unitBet);
+  }
+
+  planBonus(unitBet: number, rng: Rng): PlannedRound {
+    const bought = buyFeature(this.#game, rng, unitBet);
+    const { feature } = bought;
+    return {
+      totalBet: bought.price,
+      totalWin: bought.totalWin,
+      summary: {
+        bought: true,
+        price: bought.price,
+        feature: {
+          awarded: feature.awarded,
+          spinsPlayed: feature.spins.length,
+          retriggers: feature.spins.filter((spin) => spin.retriggered > 0).length,
+          wildsLocked: feature.spins.at(-1)?.locked.length ?? 0,
+          win: feature.win,
+        },
+        capped: bought.capped,
+        totalWin: bought.totalWin,
+      },
+      present: async (hooks, options) => {
+        this.#lastResult = bought;
+        await this.#presentFeature({ base: null, feature, totalBet: bought.totalBet, totalWin: bought.totalWin, capped: bought.capped }, hooks, options.turbo);
+      },
+    };
+  }
+
   quickStop(): void {
     this.#view?.quickStop();
   }
@@ -179,7 +220,7 @@ export class ClockworkMachine implements Machine {
     this.#app!.canvas.setAttribute("aria-label", describeGrid(base.grid));
 
     if (round.feature !== null) {
-      await this.#presentFeature(round, round.feature, hooks, turbo);
+      await this.#presentFeature({ base, feature: round.feature, totalBet: round.totalBet, totalWin: round.totalWin, capped: round.capped }, hooks, turbo);
       return;
     }
     if (round.totalWin === 0) {
@@ -192,25 +233,25 @@ export class ClockworkMachine implements Machine {
     view.presentWins(base, (step) => hooks.setMessage(describeStep(step, base)));
   }
 
-  /** The opening spin's win and its scatters, then the banner, then each free spin in turn. */
-  async #presentFeature(round: RoundResult, feature: FeatureResult, hooks: RoundHooks, turbo: boolean): Promise<void> {
+  /** The opening spin's win and its scatters (if there was an opening spin), then the banner, then each free spin in turn. */
+  async #presentFeature(play: FeaturePlay, hooks: RoundHooks, turbo: boolean): Promise<void> {
     const game = this.#game;
     const view = this.#view!;
     const sfx = this.#sfx!;
-    const { base, totalBet } = round;
+    const { base, feature, totalBet } = play;
     const scatter = game.scatter!.symbol;
     const retriggerAt = smallestKey(game.feature!.retrigger);
     const countUp = (win: number): number => (this.#reduceMotion ? 0 : winCountDuration(win, totalBet));
 
-    let running = base.totalWin;
-    if (base.totalWin > 0) {
+    let running = base?.totalWin ?? 0;
+    if (base !== null && base.totalWin > 0) {
       const jingle = winSound(base.totalWin, totalBet);
       if (jingle !== null) sfx.play(jingle);
       hooks.setWin(running, countUp(base.totalWin));
     }
     sfx.play("featureStart");
     hooks.setMessage(`Free spins! ${feature.awarded} of them, and every wild that lands stays.`);
-    await view.flashCells([...winCells(base), ...cellsShowing(base.grid, scatter)], BEAT_MS.trigger);
+    if (base !== null) await view.flashCells([...winCells(base), ...cellsShowing(base.grid, scatter)], BEAT_MS.trigger);
 
     view.setStrips(game.feature!.strips);
     void view.setFeatureMode(true);
@@ -251,11 +292,13 @@ export class ClockworkMachine implements Machine {
     if (jingle !== null) sfx.play(jingle);
     await view.banner(formatCredits(feature.win), "FREE SPINS WIN", BEAT_MS.endBanner);
     await view.setFeatureMode(false);
-    hooks.setWin(round.totalWin, 0);
+    hooks.setWin(play.totalWin, 0);
     hooks.setMessage(
-      round.capped
+      play.capped
         ? `Free spins won ${formatCredits(feature.win)}, the most one bet can win (${formatCredits(game.maxWinMultiple! * totalBet)}).`
-        : `Free spins won ${formatCredits(feature.win)}; ${formatCredits(round.totalWin)} in all.`,
+        : base === null
+          ? `Free spins won ${formatCredits(feature.win)}.`
+          : `Free spins won ${formatCredits(feature.win)}; ${formatCredits(play.totalWin)} in all.`,
     );
   }
 }

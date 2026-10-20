@@ -22,7 +22,7 @@ const TINY: CascadeConfig = defineCascadeGame({
   minCluster: 2,
   units: 1,
   scatter: "S",
-  feature: { trigger: 2, spins: 2, retrigger: null, maxSpins: 2, heatStep: null },
+  feature: { trigger: 2, spins: 2, retrigger: null, maxSpins: 2, heatStep: null, buyCost: null },
   heat: { start: 1, step: 1, max: 3 },
   maxWinMultiple: 1_000_000,
 });

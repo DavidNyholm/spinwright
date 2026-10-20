@@ -34,7 +34,8 @@ export const crucible = defineCascadeGame({
     G6: { 5: 12, 6: 16, 7: 22, 8: 29, 9: 40, 10: 53, 12: 97, 15: 239, 20: 1073 },
   },
   scatter: "E",
-  feature: { trigger: 4, spins: 10, retrigger: { count: 3, spins: 5 }, maxSpins: 30, heatStep: 4 },
+  // The feature averages 75.3x the bet (sd 78x, median 50x), so 79x returns 95.3%: a little under the machine itself.
+  feature: { trigger: 4, spins: 10, retrigger: { count: 3, spins: 5 }, maxSpins: 30, heatStep: 4, buyCost: 79 },
   heat: { start: 1, step: 1, max: 100 },
   maxWinMultiple: 5_000,
 });

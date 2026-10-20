@@ -2,7 +2,7 @@ import type { Rng } from "../rng.ts";
 import type { Position } from "../types.ts";
 import { compileCascade, countPiece, fillGrid, findClusters, removeAndRefill, toSymbolGrid } from "./grid.ts";
 import type { CompiledCascade } from "./grid.ts";
-import type { CascadeConfig, CascadeResult, CascadeStep, ClusterWin, PlayOptions, RoundResult } from "./types.ts";
+import type { BoughtFeature, CascadeConfig, CascadeResult, CascadeStep, ClusterWin, PlayOptions, RoundResult } from "./types.ts";
 
 function checkUnitBet(unitBet: number): void {
   if (!Number.isInteger(unitBet) || unitBet < 1) {
@@ -125,6 +125,23 @@ export function playCascade(config: CascadeConfig, rng: Rng, unitBet: number, op
     capped = feature.some((round) => round.capped);
   }
   return { unitBet, totalBet, base, feature, totalWin, capped };
+}
+
+/** What buying the feature costs at this bet, in credits, or null if the game's feature cannot be bought. */
+export function featurePrice(config: CascadeConfig, unitBet: number): number | null {
+  const buyCost = config.feature?.buyCost ?? null;
+  return buyCost === null ? null : buyCost * unitBet * config.units;
+}
+
+/** Buys the feature and plays it. The outcome, every spin of it, is final before anything is shown. */
+export function buyFeature(config: CascadeConfig, rng: Rng, unitBet: number, options: PlayOptions = {}): BoughtFeature {
+  checkUnitBet(unitBet);
+  const price = featurePrice(config, unitBet);
+  if (price === null) throw new Error(`${config.id}'s feature cannot be bought`);
+  const totalBet = unitBet * config.units;
+  const rounds = playFeature(compileCascade(config), rng, unitBet, config.maxWinMultiple * totalBet, options.record ?? false);
+  const totalWin = rounds.reduce((sum, round) => sum + round.win, 0);
+  return { unitBet, totalBet, price, feature: rounds, totalWin, capped: rounds.some((round) => round.capped) };
 }
 
 /**

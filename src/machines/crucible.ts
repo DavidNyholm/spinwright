@@ -1,8 +1,8 @@
 import { Application } from "pixi.js";
 import type { Machine, PlannedRound, RoundHooks } from "../app/machine.ts";
 import type { Sfx } from "../audio/sfx.ts";
-import { playCascade } from "../engine/cascade/index.ts";
-import type { CascadeConfig, CascadeResult } from "../engine/cascade/index.ts";
+import { buyFeature, featurePrice, playCascade } from "../engine/cascade/index.ts";
+import type { BoughtFeature, CascadeConfig, CascadeResult } from "../engine/cascade/index.ts";
 import { createRng } from "../engine/index.ts";
 import type { Rng } from "../engine/index.ts";
 import { CASCADE_LAYOUT, cascadeStageSize, CascadeView } from "../ui/cascadeView.ts";
@@ -23,17 +23,19 @@ export class CrucibleMachine implements Machine {
   readonly unitName = "unit";
   readonly forcedStopLimits = null;
   readonly idleMessage: string;
+  readonly bonusName: string | null;
 
   readonly #config: CascadeConfig;
   #app: Application | null = null;
   #view: CascadeView | null = null;
-  #lastResult: CascadeResult | null = null;
-  #planned: CascadeResult | null = null;
+  #lastResult: CascadeResult | BoughtFeature | null = null;
+  #planned: CascadeResult | BoughtFeature | null = null;
 
   constructor(config: CascadeConfig) {
     this.#config = config;
     this.id = config.id;
     this.units = config.units;
+    this.bonusName = config.feature?.buyCost == null ? null : "furnace";
     this.idleMessage = `Groups of ${config.minCluster}+ gems pay. Every win heats the furnace and multiplies the next.`;
   }
 
@@ -92,6 +94,34 @@ export class CrucibleMachine implements Machine {
         if (result.totalWin === 0) hooks.setMessage("No groups this spin.");
         else if (result.feature !== null) hooks.setMessage(`Won ${formatCredits(result.totalWin)} in total, furnace included.`);
         else hooks.setMessage(`Won ${formatCredits(result.totalWin)} over ${result.base.stepCount} ${result.base.stepCount === 1 ? "step" : "steps"}.`);
+      },
+    };
+  }
+
+  bonusPrice(unitBet: number): number | null {
+    return featurePrice(this.#config, unitBet);
+  }
+
+  planBonus(unitBet: number, rng: Rng): PlannedRound {
+    const bought = buyFeature(this.#config, rng, unitBet, { record: true });
+    this.#planned = bought;
+    return {
+      totalBet: bought.price,
+      totalWin: bought.totalWin,
+      summary: {
+        bought: true,
+        price: bought.price,
+        spins: bought.feature.length,
+        win: bought.totalWin,
+        endHeat: bought.feature.at(-1)?.endHeat,
+        capped: bought.capped,
+      },
+      present: async (hooks: RoundHooks, options: { turbo: boolean }) => {
+        await this.#view!.presentBought(bought, hooks, options);
+        this.#lastResult = bought;
+        const finalGrid = bought.feature.at(-1)?.finalGrid;
+        if (finalGrid) this.#app!.canvas.setAttribute("aria-label", describeGrid(finalGrid));
+        hooks.setMessage(`The furnace won ${formatCredits(bought.totalWin)}.`);
       },
     };
   }

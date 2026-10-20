@@ -27,6 +27,12 @@ export interface FeatureConfig {
   readonly retrigger: PayTable;
   /** The most free spins one feature can reach, retriggers included. */
   readonly maxSpins: number;
+  /**
+   * What buying the feature outright costs, as a multiple of the total bet, or null if it cannot be
+   * bought. A bought feature starts as if the fewest scatters that trigger it had landed. The price
+   * is chosen from the feature's measured average value (see src/sim), so a buy returns about what a spin does.
+   */
+  readonly buyCost: number | null;
 }
 
 /**

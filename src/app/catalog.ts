@@ -26,6 +26,7 @@ export interface CatalogEntry {
   readonly emblem: EmblemName;
 }
 
+const bonusBuyFact = (buyCost: number | null): string => (buyCost === null ? "No bonus buy" : `Bonus buy: ${buyCost}× your bet`);
 const percent = (value: number): string => `${value.toFixed(2).replace(/\.?0+$/, "")}%`;
 
 export const CATALOG: readonly CatalogEntry[] = [
@@ -39,6 +40,7 @@ export const CATALOG: readonly CatalogEntry[] = [
     facts: [
       `${classic.reels} reels, ${classic.paylines.length} lines, wilds and scatters`,
       `Returns about ${percent(CLOCKWORK_RTP_PERCENT)} (opening spin exact, free spins simulated)`,
+      bonusBuyFact(classic.feature?.buyCost ?? null),
     ],
     emblem: "gear",
   },
@@ -52,6 +54,7 @@ export const CATALOG: readonly CatalogEntry[] = [
     facts: [
       `${crucible.columns} × ${crucible.rows} grid, groups of ${crucible.minCluster} or more pay`,
       `Returns about ${percent(CRUCIBLE_RTP_PERCENT)} (simulated)`,
+      bonusBuyFact(crucible.feature?.buyCost ?? null),
     ],
     emblem: "gem",
   },

@@ -101,9 +101,9 @@ describe("defineCascadeGame", () => {
     ["a fractional pay", { pays: { ...TOY.pays, A: { 3: 1.5 } } }, /non-negative integer/],
     ["a pay size beyond the grid", { pays: { ...TOY.pays, A: { 3: 1, 13: 5 } } }, /size "13"/],
     ["a feature with no scatter", { scatter: null, pays: TOY.pays, weights: Array.from({ length: 4 }, () => ({ A: 4, B: 3, C: 2 })) }, /feature needs a scatter/],
-    ["a feature that cannot be triggered by the grid", { feature: { trigger: 13, spins: 3, retrigger: null, maxSpins: 8, heatStep: null } }, /trigger must be an integer/],
-    ["a feature whose limit is below its spins", { feature: { trigger: 2, spins: 5, retrigger: null, maxSpins: 3, heatStep: null } }, /maxSpins must be an integer at least/],
-    ["a zero feature heat step", { feature: { trigger: 2, spins: 3, retrigger: null, maxSpins: 8, heatStep: 0 } }, /feature.heatStep/],
+    ["a feature that cannot be triggered by the grid", { feature: { trigger: 13, spins: 3, retrigger: null, maxSpins: 8, heatStep: null, buyCost: null } }, /trigger must be an integer/],
+    ["a feature whose limit is below its spins", { feature: { trigger: 2, spins: 5, retrigger: null, maxSpins: 3, heatStep: null, buyCost: null } }, /maxSpins must be an integer at least/],
+    ["a zero feature heat step", { feature: { trigger: 2, spins: 3, retrigger: null, maxSpins: 8, heatStep: 0, buyCost: null } }, /feature.heatStep/],
     ["a heat maximum below its start", { heat: { start: 3, step: 1, max: 2 } }, /heat.max/],
     ["a zero heat step", { heat: { start: 1, step: 0, max: 4 } }, /heat.step/],
     ["no win cap", { maxWinMultiple: 0 }, /maxWinMultiple must be a positive integer/],
@@ -183,7 +183,7 @@ describe("findClusters", () => {
         // Every group of at least minCluster must pay, so the pay tables start at that size.
         pays: { A: { [minCluster]: 1 }, B: { [minCluster]: 1 }, C: { [minCluster]: 1 } },
         weights: Array.from({ length: columns }, () => ({ A: 5, B: 4, C: 3, S: 1 })),
-        feature: { trigger: 2, spins: 3, retrigger: null, maxSpins: 8, heatStep: null },
+        feature: { trigger: 2, spins: 3, retrigger: null, maxSpins: 8, heatStep: null, buyCost: null },
       });
       const compiled = compileCascade(config);
       const grid = new Uint8Array(columns * rows);
@@ -380,7 +380,7 @@ describe("playCascade", () => {
 
   it("heats faster in the feature when the game says so, and not in the base game", () => {
     const config = makeCascade({
-      feature: { trigger: 2, spins: 3, retrigger: { count: 2, spins: 2 }, maxSpins: 8, heatStep: 3 },
+      feature: { trigger: 2, spins: 3, retrigger: { count: 2, spins: 2 }, maxSpins: 8, heatStep: 3, buyCost: null },
       heat: { start: 1, step: 1, max: 50 },
     });
     const rng = createRng("feature-heat-step");
