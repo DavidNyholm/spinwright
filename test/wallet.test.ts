@@ -76,27 +76,35 @@ describe("Wallet", () => {
 
 describe("prefs", () => {
   const LEVELS = [1, 2, 5];
-  const DEFAULTS = { lineBet: 2, turbo: false };
+  const MACHINES = ["one", "two"];
+  const DEFAULTS = { unitBet: 2, turbo: false, machine: "one" };
+  const load = (store: ReturnType<typeof memoryStore>) => loadPrefs(store, "p", LEVELS, MACHINES, DEFAULTS);
 
   it("returns the defaults when nothing is saved", () => {
-    expect(loadPrefs(memoryStore(), "p", LEVELS, DEFAULTS)).toEqual(DEFAULTS);
+    expect(load(memoryStore())).toEqual(DEFAULTS);
   });
 
   it("round-trips saved preferences", () => {
     const store = memoryStore();
-    savePrefs(store, "p", { lineBet: 5, turbo: true });
-    expect(loadPrefs(store, "p", LEVELS, DEFAULTS)).toEqual({ lineBet: 5, turbo: true });
+    savePrefs(store, "p", { unitBet: 5, turbo: true, machine: "two" });
+    expect(load(store)).toEqual({ unitBet: 5, turbo: true, machine: "two" });
   });
 
   it("drops a saved bet that is no longer an allowed level", () => {
     const store = memoryStore();
-    savePrefs(store, "p", { lineBet: 3, turbo: true });
-    expect(loadPrefs(store, "p", LEVELS, DEFAULTS)).toEqual({ lineBet: 2, turbo: true });
+    savePrefs(store, "p", { unitBet: 3, turbo: true, machine: "two" });
+    expect(load(store)).toEqual({ unitBet: 2, turbo: true, machine: "two" });
+  });
+
+  it("drops a saved machine that no longer exists", () => {
+    const store = memoryStore();
+    savePrefs(store, "p", { unitBet: 5, turbo: false, machine: "retired" });
+    expect(load(store)).toEqual({ unitBet: 5, turbo: false, machine: "one" });
   });
 
   it("survives corrupt saved data", () => {
     const store = memoryStore();
     store.setItem("p", "{not json");
-    expect(loadPrefs(store, "p", LEVELS, DEFAULTS)).toEqual(DEFAULTS);
+    expect(load(store)).toEqual(DEFAULTS);
   });
 });

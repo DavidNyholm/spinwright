@@ -100,6 +100,11 @@ export class Hud {
     return this.#balance.target;
   }
 
+  /** The win being shown, or the one it is counting up to. */
+  get win(): number {
+    return this.#win.target;
+  }
+
   setBalance(value: number, animateMs = 0): void {
     this.#balance.animateTo(value, animateMs);
   }
@@ -123,9 +128,9 @@ export class Hud {
     this.#apply();
   }
 
-  /** Enables the controls once the game has finished loading. */
-  setReady(): void {
-    this.#state.ready = true;
+  /** Enables the controls once a machine has loaded, and disables them while one is loading. */
+  setReady(ready = true): void {
+    this.#state.ready = ready;
     this.#apply();
   }
 

@@ -4,60 +4,51 @@ import "@fontsource/big-shoulders-display/latin-800";
 import "@fontsource/ibm-plex-mono/latin-500";
 import "@fontsource/ibm-plex-mono/latin-600";
 import "./style.css";
-import { Application } from "pixi.js";
+import type { Ticker } from "pixi.js";
 import { BUILT_WITH } from "./app/about.ts";
+import type { Machine, RoundHooks } from "./app/machine.ts";
 import { loadPrefs, savePrefs } from "./app/prefs.ts";
 import { SETTINGS } from "./app/settings.ts";
 import { browserStore } from "./app/storage.ts";
 import { Wallet } from "./app/wallet.ts";
-import { buildGrid, createCryptoRng, createRng, randomSeed, spin, spinFromStops } from "./engine/index.ts";
-import type { GameConfig, SpinResult } from "./engine/index.ts";
-import { games } from "./games/index.ts";
+import { winCountDuration } from "./app/winCount.ts";
+import { createCryptoRng, createRng, randomSeed } from "./engine/index.ts";
+import { MACHINES } from "./machines/index.ts";
 import { createDebugPanel } from "./ui/debugPanel.ts";
+import type { DebugPanel } from "./ui/debugPanel.ts";
 import { formatCredits, Hud } from "./ui/hud.ts";
-import { LAYOUT, stageSize } from "./ui/layout.ts";
-import { SlotView } from "./ui/slotView.ts";
-import type { WinStep } from "./ui/slotView.ts";
-import { CLOCKWORK, createSymbolTextures } from "./ui/theme.ts";
 
-const GAME_ID = "classic";
-/** The win counter runs longer for bigger wins, within these limits. */
-const WIN_COUNT = { minMs: 400, maxMs: 2_500, msPerBetMultiple: 120 };
-const MAX_PIXEL_RATIO = 3;
-/** Spacing between the reels' resting positions on first load, so the idle screen is not a flat row. */
-const INITIAL_STOP_SPACING = 7;
-
-function winCountDuration(win: number, totalBet: number): number {
-  const ms = WIN_COUNT.minMs + (win / totalBet) * WIN_COUNT.msPerBetMultiple;
-  return Math.min(WIN_COUNT.maxMs, ms);
-}
-
+/**
+ * The page around the machines: wallet, bet, spin button and readouts. It knows nothing about how a
+ * machine plays or looks; it asks the current machine to plan a round and to show it.
+ */
 async function main(): Promise<void> {
-  const entry = games[GAME_ID];
-  if (entry?.kind !== "lines") throw new Error(`"${GAME_ID}" is not a line game`);
-  // Re-bound with its own type so the check above still holds inside the closures below.
-  const game: GameConfig = entry.config;
-
   const params = new URLSearchParams(location.search);
   const seed = params.get("seed") ?? randomSeed();
   // Live play draws from the OS cryptographic source. A seeded, repeatable generator is only used
   // when QA asks for one (?seed=, or ?debug, which shows the seed so a run can be replayed).
-  const repeatable = params.has("seed") || params.has("debug");
-  const rng = repeatable ? createRng(seed) : createCryptoRng();
-  const debug = params.has("debug") ? createDebugPanel(game, seed) : null;
+  const debugMode = params.has("debug");
+  const rng = params.has("seed") || debugMode ? createRng(seed) : createCryptoRng();
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   const store = browserStore();
   const wallet = new Wallet(store, SETTINGS.walletKey, SETTINGS.startingBalance);
-  const prefs = loadPrefs(store, SETTINGS.prefsKey, SETTINGS.lineBetLevels, {
-    lineBet: SETTINGS.defaultLineBet,
-    turbo: false,
-  });
-  const levels = SETTINGS.lineBetLevels;
-  const lines = game.paylines.length;
-  const cheapestBet = levels[0]! * lines;
+  const prefs = loadPrefs(
+    store,
+    SETTINGS.prefsKey,
+    SETTINGS.betLevels,
+    MACHINES.map((entry) => entry.id),
+    { unitBet: SETTINGS.defaultUnitBet, turbo: false, machine: MACHINES[0]!.id },
+  );
+  const levels = SETTINGS.betLevels;
+
+  let machine: Machine | null = null;
+  let debug: DebugPanel | null = null;
+  let busy = false;
+  let loading = true;
 
   document.getElementById("built-with")!.textContent = `${BUILT_WITH.name} (${BUILT_WITH.modelId})`;
+  const host = document.getElementById("stage")!;
 
   const hud = new Hud({
     onSpin: () => handleSpin(),
@@ -75,164 +66,158 @@ async function main(): Promise<void> {
   });
   hud.setMessage("Loading…");
 
-  const app = new Application();
-  let view: SlotView;
-  try {
-    const { width, height } = stageSize(game.reels, game.rows);
-    await app.init({
-      width,
-      height,
-      backgroundAlpha: 0,
-      antialias: true,
-      resolution: Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO),
-      autoDensity: true,
-    });
-    app.canvas.style.width = "100%";
-    app.canvas.style.height = "auto";
-    app.canvas.setAttribute("role", "img");
-    document.getElementById("stage")!.append(app.canvas);
-
-    // The symbol art uses the display font; draw it only once the font is ready.
-    await document.fonts.load('800 48px "Big Shoulders Display"');
-    const textures = createSymbolTextures(app.renderer, CLOCKWORK, new Set(game.strips.flat()), LAYOUT.cellWidth, LAYOUT.cellHeight);
-    view = new SlotView(app, game, textures, { reduceMotion });
-  } catch (error) {
-    console.error(error);
-    hud.setMessage("Couldn't start the graphics engine. Try another browser, or enable hardware acceleration.");
-    return;
-  }
-
-  // With ?debug, expose state for QA scripts: the last result, and what the reels actually show.
-  const qa = {
-    seed,
-    game,
-    wallet,
-    lastResult: null as SpinResult | null,
-    shownGrid: () => view.shownGrid(),
-    finishCounters: () => hud.finishCounters(),
-    ticker: app.ticker,
-    /**
-     * Steps the real animation by hand, at 60 fps of simulated time, until the round is over. It
-     * does not depend on the browser's frame rate, so QA scripts stay fast and repeatable even in a
-     * throttled background tab. Returns the simulated milliseconds it took.
-     */
-    async settle(maxMs = 10_000): Promise<number> {
-      const frameMs = 1000 / 60;
-      let simulated = 0;
-      app.ticker.stop();
-      try {
-        let time = app.ticker.lastTime;
-        while (document.body.dataset.state !== "idle" && simulated < maxMs) {
-          time += frameMs;
-          simulated += frameMs;
-          app.ticker.update(time);
-          await Promise.resolve();
-        }
-      } finally {
-        app.ticker.start();
-      }
-      return simulated;
-    },
+  const hooks: RoundHooks = {
+    setWin: (total, animateMs = 0) => hud.setWin(total, animateMs),
+    setMessage: (text) => hud.setMessage(text),
   };
-  if (debug !== null) Object.assign(window, { spinwright: qa });
 
-  let busy = false;
+  // --- the machine switcher ---------------------------------------------------------------
 
-  function describeGrid(grid: readonly (readonly string[])[]): string {
-    return grid.map((column, reel) => `Reel ${reel + 1}: ${column.map(CLOCKWORK.name).join(", ")}`).join(". ");
-  }
+  const nav = document.getElementById("machines")!;
+  const tabs = MACHINES.map((entry) => {
+    const tab = document.createElement("button");
+    tab.type = "button";
+    tab.className = "machine-tab";
+    tab.dataset["machine"] = entry.id;
+    const number = document.createElement("span");
+    number.className = "no";
+    number.textContent = `No. ${entry.number}`;
+    tab.append(number, ` ${entry.name}`);
+    tab.addEventListener("click", () => void switchTo(entry.id));
+    nav.append(tab);
+    return tab;
+  });
 
-  function describeStep(step: WinStep, result: SpinResult): string {
-    switch (step.kind) {
-      case "all":
-        return `You won ${formatCredits(result.totalWin)} credits`;
-      case "line":
-        return `Line ${step.win.line + 1}: ${step.win.count} × ${CLOCKWORK.name(step.win.symbol)} on reels 1-${step.win.count} pays ${formatCredits(step.win.win)}`;
-      case "scatter":
-        return `${step.win.count} × ${CLOCKWORK.name(step.win.symbol)} pays ${formatCredits(step.win.win)}`;
+  function refreshTabs(): void {
+    for (const tab of tabs) {
+      tab.setAttribute("aria-pressed", String(tab.dataset["machine"] === prefs.machine));
+      tab.disabled = busy || loading;
     }
   }
 
+  async function switchTo(id: string): Promise<void> {
+    if (busy || loading || id === prefs.machine) return;
+    prefs.machine = id;
+    savePrefs(store, SETTINGS.prefsKey, prefs);
+    await loadMachine(id);
+  }
+
+  async function loadMachine(id: string): Promise<void> {
+    loading = true;
+    document.body.dataset["state"] = "loading";
+    hud.setReady(false);
+    refreshTabs();
+    machine?.dispose();
+    debug?.dispose();
+    machine = null;
+    debug = null;
+    host.replaceChildren();
+
+    const entry = MACHINES.find((candidate) => candidate.id === id) ?? MACHINES[0]!;
+    const next = entry.create();
+    try {
+      // The artwork uses the display font; draw it only once the font is ready.
+      await document.fonts.load('800 48px "Big Shoulders Display"');
+      const size = await next.mount(host, { reduceMotion });
+      document.documentElement.style.setProperty("--aspect", String(size.width / size.height));
+    } catch (error) {
+      console.error(error);
+      hud.setMessage("Couldn't start the graphics engine. Try another browser, or enable hardware acceleration.");
+      loading = false;
+      refreshTabs();
+      return;
+    }
+
+    machine = next;
+    document.body.dataset["machine"] = entry.id;
+    debug = debugMode ? createDebugPanel({ seed, stopLimits: next.forcedStopLimits }) : null;
+    loading = false;
+    refreshBet();
+    refreshBroke();
+    hud.setBalance(wallet.balance);
+    hud.setWin(0);
+    hud.setMessage(next.idleMessage);
+    hud.setReady(true);
+    refreshTabs();
+    document.body.dataset["state"] = "idle";
+  }
+
+  // --- bet and balance ----------------------------------------------------------------------
+
   function refreshBet(): void {
-    const index = levels.indexOf(prefs.lineBet);
+    if (machine === null) return;
+    const index = levels.indexOf(prefs.unitBet);
+    const { units, unitName } = machine;
     hud.setBet(
-      prefs.lineBet * lines,
-      `${formatCredits(prefs.lineBet)} per line × ${lines} lines`,
+      prefs.unitBet * units,
+      `${formatCredits(prefs.unitBet)} per ${unitName} × ${units} ${unitName}s`,
       index > 0,
       index < levels.length - 1,
     );
   }
 
   function refreshBroke(): void {
-    hud.setBroke(!wallet.canAfford(cheapestBet));
+    if (machine === null) return;
+    hud.setBroke(!wallet.canAfford(levels[0]! * machine.units));
   }
 
   function stepBet(direction: -1 | 1): void {
-    if (busy) return;
-    const index = Math.min(levels.length - 1, Math.max(0, levels.indexOf(prefs.lineBet) + direction));
-    prefs.lineBet = levels[index]!;
+    if (busy || machine === null) return;
+    const index = Math.min(levels.length - 1, Math.max(0, levels.indexOf(prefs.unitBet) + direction));
+    prefs.unitBet = levels[index]!;
     savePrefs(store, SETTINGS.prefsKey, prefs);
     refreshBet();
   }
 
-  function handleSpin(): void {
-    if (busy) {
-      view.quickStop();
-      return;
-    }
-    void playRound();
-  }
-
   /** Called when the chosen bet is more than the balance: lower it to the best affordable one. */
-  function lowerBetToFit(): void {
-    const best = levels.filter((level) => wallet.canAfford(level * lines)).at(-1);
+  function lowerBetToFit(units: number): void {
+    const best = levels.filter((level) => wallet.canAfford(level * units)).at(-1);
     if (best === undefined) {
       hud.setMessage("Out of credits.");
       return;
     }
-    prefs.lineBet = best;
+    prefs.unitBet = best;
     savePrefs(store, SETTINGS.prefsKey, prefs);
     refreshBet();
-    hud.setMessage(`Not enough credits for that bet. Lowered to ${formatCredits(best * lines)}; press spin to play.`);
+    hud.setMessage(`Not enough credits for that bet. Lowered to ${formatCredits(best * units)}; press spin to play.`);
   }
 
-  function reveal(result: SpinResult, totalBet: number): void {
-    qa.lastResult = result;
-    app.canvas.setAttribute("aria-label", describeGrid(result.grid));
-    debug?.report(result);
+  // --- a round ------------------------------------------------------------------------------
 
-    if (result.totalWin === 0) {
-      hud.setMessage("No win this spin.");
+  function handleSpin(): void {
+    if (machine === null || loading) return;
+    if (busy) {
+      machine.quickStop();
       return;
     }
-    const countMs = reduceMotion ? 0 : winCountDuration(result.totalWin, totalBet);
-    hud.setWin(result.totalWin, countMs);
-    hud.setBalance(wallet.balance, countMs);
-    view.presentWins(result, (step) => hud.setMessage(describeStep(step, result)));
+    void playRound(machine);
   }
 
-  async function playRound(): Promise<void> {
+  async function playRound(current: Machine): Promise<void> {
     busy = true;
-    document.body.dataset.state = "spinning";
+    document.body.dataset["state"] = "spinning";
+    refreshTabs();
     try {
       hud.finishCounters();
-      view.clearHighlights();
-      const totalBet = prefs.lineBet * lines;
+      current.clear();
+      const totalBet = prefs.unitBet * current.units;
       if (!wallet.canAfford(totalBet)) {
-        lowerBetToFit();
+        lowerBetToFit(current.units);
         return;
       }
 
-      const forced = debug?.forcedStops() ?? null;
-      const result = forced !== null ? spinFromStops(game, forced, prefs.lineBet) : spin(game, rng, prefs.lineBet);
-      // The outcome is final here: bank it now, and only reveal it once the reels stop.
-      wallet.settle(totalBet, result.totalWin);
-      hud.setBalance(wallet.balance - result.totalWin);
+      const planned = current.plan(prefs.unitBet, rng, debug?.forcedStops() ?? null);
+      // The outcome is final here: bank it now, and only reveal it as the machine plays it out.
+      wallet.settle(planned.totalBet, planned.totalWin);
+      hud.setBalance(wallet.balance - planned.totalWin);
       hud.setWin(0);
       hud.setMessage("Spinning…");
       hud.setSpinning(true);
-      await view.spin(result.stops, prefs.turbo);
-      reveal(result, totalBet);
+      await planned.present(hooks, { turbo: prefs.turbo });
+
+      debug?.report(planned.summary);
+      if (hud.win !== planned.totalWin) hud.setWin(planned.totalWin);
+      hud.setBalance(wallet.balance, reduceMotion ? 0 : winCountDuration(planned.totalWin, planned.totalBet));
     } catch (error) {
       console.error(error);
       hud.setBalance(wallet.balance);
@@ -241,21 +226,66 @@ async function main(): Promise<void> {
       busy = false;
       hud.setSpinning(false);
       refreshBroke();
-      document.body.dataset.state = "idle";
+      refreshTabs();
+      document.body.dataset["state"] = "idle";
     }
   }
 
-  const initialStops = game.strips.map((strip, reel) => (reel * INITIAL_STOP_SPACING) % strip.length);
-  view.showStops(initialStops);
-  app.canvas.setAttribute("aria-label", describeGrid(buildGrid(game, initialStops)));
-  hud.setBalance(wallet.balance);
-  hud.setWin(0);
-  hud.setTurbo(prefs.turbo);
-  refreshBet();
-  refreshBroke();
-  hud.setMessage("Press spin, or hit Space, to play.");
-  hud.setReady();
-  document.body.dataset.state = "idle";
+  // --- QA -----------------------------------------------------------------------------------
+
+  if (debugMode) {
+    const qaState = (): Record<string, unknown> => machine?.qa() ?? {};
+    Object.assign(window, {
+      spinwright: {
+        seed,
+        wallet,
+        get game() {
+          return qaState()["game"];
+        },
+        get lastResult() {
+          return qaState()["lastResult"];
+        },
+        get planned() {
+          return qaState()["planned"];
+        },
+        get ticker() {
+          return qaState()["ticker"];
+        },
+        shownGrid: () => (qaState()["shownGrid"] as () => unknown)(),
+        readouts: () => (qaState()["readouts"] as () => unknown)(),
+        worstOverlap: () => (qaState()["worstOverlap"] as () => number)(),
+        pieceStates: () => (qaState()["pieceStates"] as () => { x: number; y: number; scale: number; alpha: number; symbol: string }[])(),
+        finishCounters: () => hud.finishCounters(),
+        switchTo,
+        /**
+         * Steps the real animation by hand, at 60 fps of simulated time, until the round is over. It
+         * does not depend on the browser's frame rate, so QA scripts stay fast and repeatable even in
+         * a throttled background tab. Returns the simulated milliseconds it took.
+         */
+        async settle(maxMs = 10_000): Promise<number> {
+          const ticker = qaState()["ticker"] as Ticker;
+          const frameMs = 1000 / 60;
+          let simulated = 0;
+          ticker.stop();
+          try {
+            let time = ticker.lastTime;
+            while (document.body.dataset["state"] !== "idle" && simulated < maxMs) {
+              time += frameMs;
+              simulated += frameMs;
+              ticker.update(time);
+              // Let the promise chains this frame set free run before the next frame.
+              for (let i = 0; i < 12; i++) await Promise.resolve();
+            }
+          } finally {
+            ticker.start();
+          }
+          return simulated;
+        },
+      },
+    });
+  }
+
+  await loadMachine(prefs.machine);
 }
 
 main().catch((error: unknown) => {

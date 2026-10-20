@@ -2,6 +2,7 @@ import { Rectangle } from "pixi.js";
 import type { Container, Renderer, Texture } from "pixi.js";
 import type { SymbolId } from "../engine/index.ts";
 import { CLOCKWORK_NAMES, drawClockworkSymbol } from "./art/clockwork.ts";
+import { drawFoundrySymbol, FOUNDRY_NAMES } from "./art/foundry.ts";
 
 /**
  * A theme is the look of a game's symbols. The reels only ask for one Texture per symbol id, so a
@@ -18,6 +19,12 @@ export const CLOCKWORK: SymbolTheme = {
   id: "clockwork",
   name: (symbol) => CLOCKWORK_NAMES[symbol] ?? symbol,
   draw: drawClockworkSymbol,
+};
+
+export const FOUNDRY: SymbolTheme = {
+  id: "foundry",
+  name: (symbol) => FOUNDRY_NAMES[symbol] ?? symbol,
+  draw: drawFoundrySymbol,
 };
 
 /** Textures are drawn at this multiple of stage size so they stay sharp on high-density screens. */

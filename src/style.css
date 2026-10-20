@@ -47,8 +47,10 @@ body::before {
 }
 
 .machine {
+  /* The stage is as wide as fits the window's height, so the whole machine can stay in view. */
+  --stage-w: min(940px, max(520px, calc((100vh - 380px) * var(--aspect, 1.9))));
   position: relative;
-  max-width: 1000px;
+  width: min(100%, calc(var(--stage-w) + 48px + 2 * var(--gutter)));
   margin: 0 auto;
   padding: 22px var(--gutter) 14px;
   display: flex;
@@ -93,19 +95,45 @@ body::before {
   text-shadow: 0 1px 0 #000, 0 -1px 0 rgba(255, 236, 190, 0.18);
 }
 
-.model {
-  margin: 0;
-  font-family: var(--display);
-  font-weight: 600;
-  font-size: 0.95rem;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--muted);
+.machines {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.model span {
-  margin: 0 0.4em;
+/* A machine selector: a small engraved plate, lit when it is the one in play. */
+.machine-tab {
+  padding: 3px 12px;
+  background: transparent;
+  border: 1px solid var(--brass-dark);
+  border-radius: 4px;
+  color: var(--muted);
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.machine-tab .no {
+  margin-right: 0.3em;
   color: var(--brass-dark);
+}
+
+.machine-tab[aria-pressed="true"] {
+  color: var(--amber-hot);
+  border-color: var(--amber-dim);
+  background: rgba(255, 179, 71, 0.08);
+  text-shadow: 0 0 10px rgba(255, 179, 71, 0.45);
+}
+
+.machine-tab[aria-pressed="true"] .no {
+  color: var(--amber-dim);
+}
+
+.machine-tab:not([aria-pressed="true"]):hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--brass);
 }
 
 .stamp {
@@ -428,18 +456,29 @@ button:focus-visible,
   }
   .nameplate {
     flex-wrap: wrap;
-    gap: 4px 12px;
+    align-items: center;
+    gap: 8px 12px;
     margin: 4px 6px 10px;
   }
   .nameplate h1 {
     font-size: 1.35rem;
   }
-  .model {
-    font-size: 0.8rem;
-  }
   .stamp {
-    margin-left: 0;
     font-size: 0.7rem;
+  }
+  /* The tabs share one row of their own under the title. */
+  .machines {
+    order: 3;
+    width: 100%;
+    flex-wrap: nowrap;
+  }
+  .machine-tab {
+    flex: 1;
+    padding: 6px 4px;
+    font-size: 0.82rem;
+    letter-spacing: 0.1em;
+    text-align: center;
+    white-space: nowrap;
   }
   .deck {
     grid-template-columns: 1fr 1fr;
