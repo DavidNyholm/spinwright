@@ -11,7 +11,9 @@ import type { UpgradeId } from "../forge/config.ts";
 import { describeUpgrade, formatAmount, UPGRADE_BLURBS } from "../forge/describe.ts";
 import { ForgeEngine, parseForgeSave } from "../forge/engine.ts";
 import type { ForgeEvent, ForgeState } from "../forge/engine.ts";
+import { forgeRules } from "../app/rules.ts";
 import { byId, StyleCell, TextCell } from "../ui/dom.ts";
+import { showRules } from "../ui/infoDialog.ts";
 import { FORGE_STAGE, ForgeScene } from "../ui/forgeScene.ts";
 
 const MAX_PIXEL_RATIO = 3;
@@ -86,6 +88,7 @@ export class ForgePage {
       if (event.repeat) event.preventDefault();
     });
     this.#ingotButton.addEventListener("click", () => this.#engine?.catchIngot());
+    byId("forge-info").addEventListener("click", () => showRules(forgeRules()));
   }
 
   async enter(): Promise<void> {

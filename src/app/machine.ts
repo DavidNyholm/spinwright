@@ -1,5 +1,6 @@
 import type { Sfx } from "../audio/sfx.ts";
 import type { Rng } from "../engine/index.ts";
+import type { RulesDoc } from "./rules.ts";
 
 /** What a machine may show on the page while a round plays. */
 export interface RoundHooks {
@@ -35,6 +36,8 @@ export interface Machine {
   readonly idleMessage: string;
   /** What the machine's bonus is called in the buy bar ("free spins"), or null if it has none to buy. */
   readonly bonusName: string | null;
+  /** The machine's "how it works" page, built from its own configuration. */
+  rules(): RulesDoc;
 
   /** Builds the machine's stage inside `host` and returns its size in stage units. */
   mount(host: HTMLElement, options: { reduceMotion: boolean; sfx: Sfx }): Promise<{ width: number; height: number }>;

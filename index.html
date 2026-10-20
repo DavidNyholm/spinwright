@@ -46,6 +46,7 @@
           <header class="nameplate">
             <h1 id="machine-title" tabindex="-1">Machine</h1>
             <span id="machine-number" class="machine-no"></span>
+            <button id="machine-info" class="info-button" type="button" aria-haspopup="dialog">How it works</button>
             <p class="stamp">Play money</p>
           </header>
 
@@ -117,6 +118,7 @@
         <div class="cabinet">
           <header class="nameplate">
             <h1 id="forge-title" tabindex="-1">The Forge</h1>
+            <button id="forge-info" class="info-button" type="button" aria-haspopup="dialog">How it works</button>
             <p class="stamp">Earns credits</p>
           </header>
 
@@ -159,6 +161,18 @@
         <p class="forge-stats" id="forge-stats"></p>
       </section>
     </main>
+
+    <dialog id="info-dialog" class="dialog info-dialog" aria-labelledby="info-title">
+      <form method="dialog">
+        <header class="info-head">
+          <h2 id="info-title">How it works</h2>
+          <button value="close" class="plain-button">Close</button>
+        </header>
+        <p id="info-intro" class="info-intro"></p>
+        <div id="info-body" class="info-body"></div>
+        <div class="dialog-actions"><button value="close" class="brass-button">Got it</button></div>
+      </form>
+    </dialog>
 
     <footer class="footer">
       <p>Play money only. No real-money gambling, no payments, no accounts.</p>

@@ -10,6 +10,7 @@ import type { Sfx } from "../audio/sfx.ts";
 import type { Rng } from "../engine/index.ts";
 import { MACHINES } from "../machines/index.ts";
 import { byId } from "../ui/dom.ts";
+import { showRules } from "../ui/infoDialog.ts";
 import { createDebugPanel } from "../ui/debugPanel.ts";
 import type { DebugPanel } from "../ui/debugPanel.ts";
 import { formatCredits, Hud } from "../ui/hud.ts";
@@ -67,6 +68,9 @@ export class MachinePage {
     });
     this.#hud.setTurbo(prefs.turbo);
     this.#hud.setMessage("Loading…");
+    byId("machine-info").addEventListener("click", () => {
+      if (this.#machine !== null) showRules(this.#machine.rules());
+    });
   }
 
   async enter(id: string): Promise<void> {

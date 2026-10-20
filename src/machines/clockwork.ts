@@ -1,5 +1,8 @@
 import { Application } from "pixi.js";
 import type { Machine, PlannedRound, RoundHooks } from "../app/machine.ts";
+import { CLOCKWORK_RTP_PERCENT } from "../app/catalog.ts";
+import { lineGameRules } from "../app/rules.ts";
+import type { RulesDoc } from "../app/rules.ts";
 import { winSound } from "../audio/sfx.ts";
 import type { Sfx } from "../audio/sfx.ts";
 import { winCountDuration } from "../app/winCount.ts";
@@ -149,6 +152,15 @@ export class ClockworkMachine implements Machine {
       },
       present: (hooks, options) => this.#present(round, hooks, options.turbo),
     };
+  }
+
+  rules(): RulesDoc {
+    return lineGameRules(this.#game, {
+      title: this.name,
+      name: CLOCKWORK.name,
+      returnPercent: CLOCKWORK_RTP_PERCENT,
+      returnBasis: "the opening spin worked out exactly, the free spins found by simulation",
+    });
   }
 
   bonusPrice(unitBet: number): number | null {

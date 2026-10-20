@@ -1,5 +1,8 @@
 import { Application } from "pixi.js";
+import { CRUCIBLE_RTP_PERCENT } from "../app/catalog.ts";
 import type { Machine, PlannedRound, RoundHooks } from "../app/machine.ts";
+import { cascadeGameRules } from "../app/rules.ts";
+import type { RulesDoc } from "../app/rules.ts";
 import type { Sfx } from "../audio/sfx.ts";
 import { buyFeature, featurePrice, playCascade } from "../engine/cascade/index.ts";
 import type { BoughtFeature, CascadeConfig, CascadeResult } from "../engine/cascade/index.ts";
@@ -96,6 +99,15 @@ export class CrucibleMachine implements Machine {
         else hooks.setMessage(`Won ${formatCredits(result.totalWin)} over ${result.base.stepCount} ${result.base.stepCount === 1 ? "step" : "steps"}.`);
       },
     };
+  }
+
+  rules(): RulesDoc {
+    return cascadeGameRules(this.#config, {
+      title: this.name,
+      name: FOUNDRY.name,
+      returnPercent: CRUCIBLE_RTP_PERCENT,
+      returnBasis: "found by simulating millions of spins",
+    });
   }
 
   bonusPrice(unitBet: number): number | null {

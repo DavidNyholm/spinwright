@@ -7,5 +7,5 @@
     "lib": ["ES2023"],
     "types": ["node"]
   },
-  "include": ["src/engine", "src/games", "src/forge", "src/app/router.ts", "src/app/catalog.ts"]
+  "include": ["src/engine", "src/games", "src/forge", "src/app/router.ts", "src/app/catalog.ts", "src/app/rules.ts"]
 }
