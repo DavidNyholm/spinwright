@@ -42,7 +42,8 @@ describe("Clockwork's page", () => {
     for (const row of table.rows) {
       const symbol = symbolOf(row[0]!);
       for (const [column, run] of [3, 4, 5].entries()) {
-        expect(row[column + 1]).toBe(`${new Intl.NumberFormat("en-US").format(lookupPay(classic.pays[symbol]!, run))}×`);
+        const paid = lookupPay(classic.pays[symbol]!, run);
+        expect(row[column + 1]).toBe(paid > 0 ? `${new Intl.NumberFormat("en-US").format(paid)}×` : "–");
       }
     }
   });
@@ -56,6 +57,17 @@ describe("Clockwork's page", () => {
   it("states the size of the game and how it is paid", () => {
     expect(text).toContain(`${classic.reels} reels, ${classic.rows} rows and ${classic.paylines.length} paylines`);
     expect(text).toContain(`times ${classic.paylines.length}`);
+  });
+
+  it("says that no win pays less than the bet, because the paytable makes it so, and says where each symbol starts", () => {
+    const winning = section(doc, "Winning").text!.join(" ");
+    expect(winning).toContain("The smallest win in this game pays 1.1 times your total bet, so no win ever pays less than your stake.");
+    // Nine and Ten start at four, the rest at three, so the page does not claim a single rule.
+    expect(winning).toContain("win from 3, and the paytable shows where each symbol starts to pay. A row must start on the first reel and run unbroken to the right.");
+    expect(section(doc, "Paytable").table!.rows.find((row) => row[0] === "name-L1")).toEqual(["name-L1", "–", "25×", "110×"]);
+    // A game whose pays can return less than the bet says nothing of the kind.
+    const stingy = lineGameRules({ ...classic, pays: { ...classic.pays, L3: { 3: 9, 4: 29, 5: 145 } } }, facts);
+    expect(section(stingy, "Winning").text!.join(" ")).not.toContain("no win ever pays less");
   });
 
   it("says which reels carry the wild", () => {
@@ -95,9 +107,10 @@ describe("Clockwork's page", () => {
   });
 
   it("follows the configuration: change a number and the page changes with it", () => {
-    const pricier = lineGameRules({ ...classic, feature: { ...classic.feature!, buyCost: 50 } }, facts);
-    expect(textOf(pricier)).toContain("for 50 times your total bet");
-    expect(textOf(pricier)).not.toContain("for 41 times");
+    const price = classic.feature!.buyCost!;
+    const pricier = lineGameRules({ ...classic, feature: { ...classic.feature!, buyCost: price + 10 } }, facts);
+    expect(textOf(pricier)).toContain(`for ${price + 10} times your total bet`);
+    expect(textOf(pricier)).not.toContain(`for ${price} times`);
     const richer = lineGameRules({ ...classic, pays: { ...classic.pays, H3: { 3: 100, 4: 500, 5: 2000 } } }, facts);
     expect(section(richer, "Paytable").table!.rows[0]).toEqual(["name-H3", "100×", "500×", "2,000×"]);
     const lowCap = lineGameRules({ ...classic, maxWinMultiple: 1000 }, facts);

@@ -1,4 +1,4 @@
-export { exactRtp, openingScatterProbabilities, triggerProbability } from "./analytic.ts";
+export { exactRtp, openingScatterProbabilities, smallestWinMultiple, triggerProbability } from "./analytic.ts";
 export type { ExactRtp } from "./analytic.ts";
 export { ConfigError, defineGame, findConfigProblems, lookupPay } from "./config.ts";
 export { evaluateGrid, evaluateLine } from "./evaluate.ts";

@@ -1,5 +1,6 @@
 import { lookupPay } from "../engine/config.ts";
 import type { CascadeConfig } from "../engine/cascade/index.ts";
+import { smallestWinMultiple } from "../engine/analytic.ts";
 import { smallestTrigger, spinsAwarded } from "../engine/feature.ts";
 import type { GameConfig, PayTable, SymbolId } from "../engine/index.ts";
 import { FORGE, UPGRADE_IDS, upgradeCost } from "../forge/config.ts";
@@ -76,6 +77,9 @@ export function lineGameRules(config: GameConfig, facts: RulesFacts): RulesDoc {
   const lines = config.paylines.length;
   const lineSymbols = Object.entries(config.pays).filter(([, table]) => keys(table).length > 0);
   const smallestRun = Math.min(...lineSymbols.flatMap(([, table]) => keys(table)));
+  // Symbols may start paying at different run lengths (the lowest may need four), and the page says so rather than claiming one rule.
+  const startsAt = new Set(lineSymbols.map(([, table]) => keys(table)[0]));
+  const smallestWin = smallestWinMultiple(config);
   const runs = Array.from({ length: config.reels - smallestRun + 1 }, (_, i) => smallestRun + i);
   const feature = config.feature;
 
@@ -83,8 +87,13 @@ export function lineGameRules(config: GameConfig, facts: RulesFacts): RulesDoc {
     {
       heading: "Winning",
       text: [
-        `${config.reels} reels, ${config.rows} rows and ${lines} paylines. A win needs ${smallestRun} or more matching symbols in a row along a payline, starting on the first reel and running unbroken to the right.`,
+        `${config.reels} reels, ${config.rows} rows and ${lines} paylines. ${
+          startsAt.size === 1
+            ? `A win needs ${smallestRun} or more matching symbols in a row along a payline, starting on the first reel and running unbroken to the right.`
+            : `Matching symbols in a row along a payline win from ${smallestRun}, and the paytable shows where each symbol starts to pay. A row must start on the first reel and run unbroken to the right.`
+        }`,
         `Your total bet is the bet per line times ${lines}. A line win pays its multiple of the bet per line${config.scatter === null ? "" : "; scatter wins pay a multiple of the total bet"}. Every line that wins is paid.`,
+        ...(smallestWin > 1 ? [`The smallest win in this game pays ${n(Number(smallestWin.toFixed(2)))} times your total bet, so no win ever pays less than your stake.`] : []),
       ],
     },
     {

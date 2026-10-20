@@ -54,6 +54,18 @@ export function openingScatterProbabilities(config: GameConfig): number[] {
   return counts;
 }
 
+/**
+ * The smallest amount any winning spin can pay, as a multiple of the total bet: the smallest line pay (in
+ * bets per line, so divided by the number of lines) or scatter pay the game has. Above 1, no win ever pays
+ * less than was staked. Infinity for a game that pays nothing.
+ */
+export function smallestWinMultiple(config: GameConfig): number {
+  const lines = config.paylines.length;
+  const linePays = Object.values(config.pays).flatMap((table) => Object.values(table).filter((pay) => pay > 0).map((pay) => pay / lines));
+  const scatterPays = config.scatter === null ? [] : Object.values(config.scatter.pays).filter((pay) => pay > 0);
+  return Math.min(Infinity, ...linePays, ...scatterPays);
+}
+
 /** The exact chance that a spin's opening grid starts the feature (0 if the game has none). */
 export function triggerProbability(config: GameConfig): number {
   if (config.feature === null) return 0;

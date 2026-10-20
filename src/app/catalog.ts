@@ -1,3 +1,4 @@
+import { smallestWinMultiple } from "../engine/index.ts";
 import { classic } from "../games/classic.ts";
 import { crucible } from "../games/crucible.ts";
 import { FORGE, machineRoute } from "./router.ts";
@@ -8,7 +9,7 @@ import type { Route } from "./router.ts";
  * figures are written here rather than worked out on every page load; test/catalog.test.ts and
  * test/crucible.test.ts fail if the games are retuned and these are left behind.
  */
-export const CLOCKWORK_RTP_PERCENT = 96.1;
+export const CLOCKWORK_RTP_PERCENT = 96.0;
 export const CRUCIBLE_RTP_PERCENT = 95.5;
 
 export type EmblemName = "gear" | "gem" | "anvil";
@@ -26,6 +27,10 @@ export interface CatalogEntry {
   readonly emblem: EmblemName;
 }
 
+/** "Every win pays more than your bet", but only if the game's paytable really makes that so. */
+export const winFloorFact = (smallest: number): readonly string[] =>
+  smallest > 1 && Number.isFinite(smallest) ? [`Every win pays more than your bet (at least ${Number(smallest.toFixed(2))}×)`] : [];
+
 const bonusBuyFact = (buyCost: number | null): string => (buyCost === null ? "No bonus buy" : `Bonus buy: ${buyCost}× your bet`);
 const percent = (value: number): string => `${value.toFixed(2).replace(/\.?0+$/, "")}%`;
 
@@ -39,6 +44,7 @@ export const CATALOG: readonly CatalogEntry[] = [
     pitch: "Five reels of brass and cogwheels. Three blueprints start free spins, and every wild that lands in them locks in place, so the board fills up as you go.",
     facts: [
       `${classic.reels} reels, ${classic.paylines.length} lines, wilds and scatters`,
+      ...winFloorFact(smallestWinMultiple(classic)),
       `Returns about ${percent(CLOCKWORK_RTP_PERCENT)} (opening spin exact, free spins simulated)`,
       bonusBuyFact(classic.feature?.buyCost ?? null),
     ],

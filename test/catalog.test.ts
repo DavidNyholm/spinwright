@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CATALOG, CLOCKWORK_RTP_PERCENT, SLOT_ENTRIES } from "../src/app/catalog.ts";
+import { CATALOG, CLOCKWORK_RTP_PERCENT, SLOT_ENTRIES, winFloorFact } from "../src/app/catalog.ts";
 import { parseRoute, routeToHash } from "../src/app/router.ts";
 import { classic } from "../src/games/classic.ts";
 import { crucible } from "../src/games/crucible.ts";
@@ -28,6 +28,20 @@ describe("catalog", () => {
     expect(Math.abs(estimate.total * 100 - CLOCKWORK_RTP_PERCENT)).toBeLessThan(0.7);
     const clockwork = CATALOG.find((entry) => entry.id === classic.id)!;
     expect(clockwork.facts.join(" ")).toContain(`${CLOCKWORK_RTP_PERCENT}%`);
+  });
+
+  it("promises that every Clockwork win pays more than the bet only because its paytable does", () => {
+    const facts = (id: string): string => CATALOG.find((entry) => entry.id === id)!.facts.join(" | ");
+    expect(facts(classic.id)).toContain("Every win pays more than your bet (at least 1.1×)");
+    // Crucible's smallest group pays a twentieth of the bet, so it makes no such promise.
+    expect(facts(crucible.id)).not.toContain("Every win pays more");
+  });
+
+  it("makes that promise only when the smallest win really is above the bet", () => {
+    expect(winFloorFact(1.1)).toEqual(["Every win pays more than your bet (at least 1.1×)"]);
+    expect(winFloorFact(2.5)).toEqual(["Every win pays more than your bet (at least 2.5×)"]);
+    // Exactly the bet is not "more than" it, and anything below is the opposite of the promise.
+    for (const smallest of [1, 0.9, 0.05, Infinity]) expect(winFloorFact(smallest), String(smallest)).toEqual([]);
   });
 
   it("says what each game is made of, from its own configuration", () => {

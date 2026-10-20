@@ -11,10 +11,16 @@ import { defineGame } from "../engine/index.ts";
  * up spin by spin. The feature has its own reel strips, which carry more scatters than the base
  * game's so that a retrigger is possible, and three scatters on a free spin add four more spins.
  *
- * Line pays are multiples of the bet per line. About 60% of the return comes from the base game's
- * lines, 2% from its scatters and 34% from the free spins. Tuned with `npm run sim`; the reel
- * strips, the paytable and the feature are what decide the return, and the locked wilds make the
- * free spins depend on one another, so a change to any of them needs a new run.
+ * Line pays are multiples of the bet per line, and there are twenty lines, so a win of 20 returns the
+ * whole bet. The paytable is built so that no win ever pays less than the bet: Nine and Ten pay only
+ * from four in a row, and every other symbol's smallest pay is 22 (1.1 times the bet). That is the
+ * cost of dropping the old three-in-a-row pays of 8 to 17, which returned less than was staked, and it
+ * is checked by test/baseGame.test.ts. The longer runs and the high symbols were scaled to pay for it.
+ *
+ * About 61% of the return comes from the base game's lines, 2% from its scatters and 33% from the
+ * free spins. Tuned with `npm run sim`; the reel strips, the paytable and the feature are what decide
+ * the return, and the locked wilds make the free spins depend on one another, so a change to any
+ * of them needs a new run.
  */
 
 const strip = (symbols: string): string[] => symbols.trim().split(/\s+/);
@@ -54,15 +60,15 @@ export const classic = defineGame({
     [0, 2, 2, 2, 0],
   ],
   pays: {
-    L1: { 3: 8, 4: 29, 5: 102 },
-    L2: { 3: 8, 4: 29, 5: 102 },
-    L3: { 3: 9, 4: 33, 5: 134 },
-    L4: { 3: 13, 4: 41, 5: 168 },
-    L5: { 3: 14, 4: 54, 5: 204 },
-    L6: { 3: 17, 4: 67, 5: 268 },
-    H1: { 3: 28, 4: 102, 5: 412 },
-    H2: { 3: 41, 4: 165, 5: 670 },
-    H3: { 3: 82, 4: 410, 5: 1650 },
+    L1: { 4: 25, 5: 110 },
+    L2: { 4: 25, 5: 110 },
+    L3: { 3: 22, 4: 29, 5: 145 },
+    L4: { 3: 22, 4: 36, 5: 185 },
+    L5: { 3: 22, 4: 47, 5: 225 },
+    L6: { 3: 22, 4: 58, 5: 290 },
+    H1: { 3: 26, 4: 89, 5: 450 },
+    H2: { 3: 36, 4: 144, 5: 730 },
+    H3: { 3: 72, 4: 358, 5: 1800 },
     W: {},
   },
   wild: "W",
@@ -78,8 +84,8 @@ export const classic = defineGame({
     ],
     retrigger: { 3: 4 },
     maxSpins: 40,
-    // Three scatters' feature is worth 39.1x the bet on average, so 41x returns 95.5%: a little under the machine itself.
-    buyCost: 41,
+    // Three scatters' feature is worth 38.0x the bet on average, so 40x returns 95%: a little under the machine itself.
+    buyCost: 40,
   },
   maxWinMultiple: 5_000,
 });
